@@ -110,7 +110,7 @@ void writefile(const char * file, Type * data, size_t num_elements){
 }
 
 template<typename Type>
-Type * compress_decompress_2d(Type *data, size_t r1, size_t r2, float eb, float s, size_t& compressed_size){
+const Type * compress_decompress_2d(Type *data,size_t r1, size_t r2, float eb, float s, size_t& compressed_size){
     Type max = data[0];
     Type min = data[0];
     for(size_t i=0; i<r1*r2; i++){
@@ -119,44 +119,107 @@ Type * compress_decompress_2d(Type *data, size_t r1, size_t r2, float eb, float 
     }
     Timer timer; 
     eb = (max-min)*eb;
-    mgard::TensorMeshHierarchy<2, Type> hierarchy({r1, r2});
+    const array<size_t, 2> dims = {r1, r2};
+    const mgard::TensorMeshHierarchy<2, Type> hierarchy(dims);
+    const size_t ndof = hierarchy.ndof();
     timer.start();
-    mgard::CompressedDataset<2, Type> compressed = mgard::compress(hierarchy, data, eb, s);
+    mgard::CompressedDataset<2, Type> compressed = mgard::compress(hierarchy, data, s, eb);
     timer.end();
-    std::cout << "compress time: " << timer.get() << "\n";
+    printf("mgard compress time = %f \n", timer.get());
+    timer.start();
+    mgard::DecompressedDataset<2, Type> decompressed = mgard::decompress(compressed);
+    timer.end();
+    printf("mgard decompress time = %f \n", timer.get());
     compressed_size = compressed.size();
+    std::cout<< "compressed size = " << compressed.size() << std::endl;
+    verify(data, decompressed.data(), r1*r2);
+    return decompressed.data();
+}
+
+
+template<typename Type>
+void compress_decompress_2d(Type *data, Type *ddata, size_t r1, size_t r2, float eb, float s, size_t& compressed_size){
+    Type max = data[0];
+    Type min = data[0];
+    for(size_t i=0; i<r1*r2; i++){
+        if(data[i]>max) max = data[i];
+        if(data[i]<min) min = data[i];
+    }
+    Timer timer; 
+    eb = (max-min)*eb;
+    const array<size_t, 2> dims = {r1, r2};
+    const mgard::TensorMeshHierarchy<2, Type> hierarchy(dims);
+    const size_t ndof = hierarchy.ndof();
     timer.start();
-    Type * decompressed_data = mgard::decompress(compressed);
+    mgard::CompressedDataset<2, Type> compressed = mgard::compress(hierarchy, data, s, eb);
     timer.end();
-    std::cout << "decompress time: " << timer.get() << "\n";
-    return decompressed_data;
+    printf("mgard compress time = %f \n", timer.get());
+    timer.start();
+    mgard::DecompressedDataset<2, Type> decompressed = mgard::decompress(compressed);
+    timer.end();
+    std::copy(decompressed.data(), decompressed.data()+r1*r2, ddata);
+    printf("mgard decompress time = %f \n", timer.get());
+    compressed_size = compressed.size();
+    std::cout<< "compressed size = " << compressed.size() << std::endl;
+    verify(data, decompressed.data(), r1*r2);
 }
 
 template<typename Type>
-Type* compress_decompress_3d(Type *data, size_t r1, size_t r2, size_t r3, float eb, float s, size_t& compressed_size){
+const Type* compress_decompress_3d(Type *data, size_t r1, size_t r2, size_t r3, float eb, float s, size_t& compressed_size){
     Type max = data[0];
     Type min = data[0];
     for(size_t i=0; i<r1*r2*r3; i++){
         if(data[i]>max) max = data[i];
         if(data[i]<min) min = data[i];
     }
+    Timer timer; 
     eb = (max-min)*eb;
-    Timer timer;
-    mgard::TensorMeshHierarchy<3, Type> hierarchy({r1, r2, r3});
+    const array<size_t,3> dims = {r1, r2,r3};
+    const mgard::TensorMeshHierarchy<3, Type> hierarchy(dims);
+    const size_t ndof = hierarchy.ndof();
     timer.start();
-    mgard::CompressedDataset<3, Type> compressed = mgard::compress(hierarchy, data, eb, s);
+    mgard::CompressedDataset<3, Type> compressed = mgard::compress(hierarchy, data, s, eb);
     timer.end();
-    std::cout << "compress time: " << timer.get() << "\n";
-    compressed_size = compressed.size();
+    printf("mgard compress time = %f \n", timer.get());
     timer.start();
-    Type * decompressed_data = mgard::decompress(compressed);
+    mgard::DecompressedDataset<3, Type> decompressed = mgard::decompress(compressed);
     timer.end();
-    std::cout << "decompress time: " << timer.get() << "\n";
-    return decompressed_data;
+    printf("mgard decompress time = %f \n", timer.get());
+    return decompressed.data();
 }
 
+
 template<typename Type>
-Type* compress_decompress(Type *data, int N, size_t* dims, float eb, float s, size_t& compressed_size){
+void compress_decompress_3d(Type *data, Type *ddata, size_t r1, size_t r2, size_t r3, float eb, float s, size_t& compressed_size){
+    Type max = data[0];
+    Type min = data[0];
+    for(size_t i=0; i<r1*r2*r3; i++){
+        if(data[i]>max) max = data[i];
+        if(data[i]<min) min = data[i];
+    }
+    Timer timer; 
+    eb = (max-min)*eb;
+    const array<size_t,3> dims = {r1, r2,r3};
+    const mgard::TensorMeshHierarchy<3, Type> hierarchy(dims);
+    const size_t ndof = hierarchy.ndof();
+    timer.start();
+    mgard::CompressedDataset<3, Type> compressed = mgard::compress(hierarchy, data, s, eb);
+    timer.end();
+    printf("mgard compress time = %f \n", timer.get());
+    timer.start();
+    mgard::DecompressedDataset<3, Type> decompressed = mgard::decompress(compressed);
+    timer.end();
+    std::copy(decompressed.data(), decompressed.data()+r1*r2*r3, ddata);
+    printf("mgard decompress time = %f \n", timer.get());
+}
+
+
+
+
+
+
+template<typename Type>
+const Type* compress_decompress(Type *data, int N, size_t* dims, float eb, float s, size_t& compressed_size){
     if(N==2){
         return compress_decompress_2d(data, dims[0], dims[1], eb, s, compressed_size);
     }
@@ -169,16 +232,37 @@ Type* compress_decompress(Type *data, int N, size_t* dims, float eb, float s, si
     }
 }
 
-// define C interface for compress and decompress functionsm
-// Type is float 
-extern "C" void * compress_decompress(float * data, int N, size_t* dims, float eb, float s, size_t& compressed_size){
-    return compress_decompress((float*)data, N, dims, eb, s, compressed_size);
+
+template<typename Type>
+void compress_decompress(Type *data, Type *ddata, int N, size_t* dims, float eb, float s, size_t& compressed_size){
+    if(N==2){
+         compress_decompress_2d(data,ddata, dims[0], dims[1], eb, s, compressed_size);
+    }
+    else if(N==3){
+         compress_decompress_3d(data,ddata, dims[0], dims[1], dims[2], eb, s, compressed_size);
+    }
+    else{
+        printf("N=%d is not supported\n", N);
+    }
 }
 
-// Type is double
-extern "C" void * compress_decompress_double(double * data, int N, size_t* dims, float eb, float s, size_t& compressed_size){
-    return compress_decompress((double*)data, N, dims, eb, s, compressed_size);
+
+// define C interface for compress and decompress functionsm
+// Type is float 
+extern "C" const float * compress_decompress_float(float * data, int N, size_t* dims, float eb, float s, size_t& compressed_size){
+    return compress_decompress(data, N, dims, eb, s, compressed_size);
 }
+
+
+extern "C" void compress_decompress(float * data, float* ddata,  int N, size_t* dims, float eb, float s, size_t& compressed_size){
+    compress_decompress(data, ddata, N, dims, eb, s, compressed_size);
+}
+
+
+// // Type is double
+// extern "C" void * compress_decompress_double(double * data, int N, size_t* dims, float eb, float s, size_t& compressed_size){
+//     return compress_decompress((double*)data, N, dims, eb, s, compressed_size);
+// }
 
 
 
@@ -205,6 +289,7 @@ int main(int argc, char ** argv){
     if (s==9) {
     s = std::numeric_limits<T>::infinity();}
     Timer timer;
+
     if(num_dims == 2){
 	    const array<size_t, 2> dims = {dimensions[0], dimensions[1]};
 	    const mgard::TensorMeshHierarchy<2, T> hierarchy(dims);
@@ -222,6 +307,10 @@ int main(int argc, char ** argv){
                 printf("bitrate = %.4f\n", 32*1.0/(1.0*num_elements*sizeof(T) / compressed.size()));
 
 	    verify(data, decompressed.data(), num_elements);
+        // size_t compressed_size = 0;
+        // const T* decompressed_data =  compress_decompress_float(data, num_dims, dimensions.data(), eb, s,compressed_size);
+        // printf("compressed_size = %d\n", compressed_size);
+        // verify(data, decompressed_data, num_elements);
 	}
 	else if(num_dims == 3){
 	    const array<size_t, 3> dims = {dimensions[0], dimensions[1], dimensions[2]};
