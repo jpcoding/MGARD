@@ -9,6 +9,11 @@
 #include <ctime>
 using namespace std;
 
+
+// dims example cesm 2 1800 3600 for the hirarachy when using python interface 
+// cli is 2 3600 1800 
+
+
 class Timer{
 public:
     void start(){
@@ -144,37 +149,6 @@ void compress_decompress_2d(Type *data, Type *ddata, size_t r1, size_t r2, float
 }
 
 
-// template<typename Type>
-// void compress_decompress_2d(Type *data, Type *ddata, size_t r1, size_t r2, float eb, float s, size_t& compressed_size){
-//     Type max = data[0];
-//     Type min = data[0];
-//     for(size_t i=0; i<r1*r2; i++){
-//         if(data[i]>max) max = data[i];
-//         if(data[i]<min) min = data[i];
-//     }
-//     Timer timer; 
-//     eb = (max-min)*eb;
-//     const array<size_t, 2> dims = {r1, r2};
-//     const mgard::TensorMeshHierarchy<2, Type> hierarchy(dims);
-//     const size_t ndof = hierarchy.ndof();
-//     timer.start();
-//     mgard::CompressedDataset<2, Type> compressed = mgard::compress(hierarchy, data, s, eb);
-//     timer.end();
-//     printf("mgard compress time = %f \n", timer.get());
-//     timer.start();
-//     mgard::DecompressedDataset<2, Type> decompressed = mgard::decompress(compressed);
-//     timer.end();
-//     printf("mgard decompress time = %f \n", timer.get());
-//     std::copy(decompressed.data(), decompressed.data()+r1*r2, ddata);
-//     // for(size_t i=0; i<r1*r2; i++){
-//     //     ddata[i] = *(decompressed.data()+i);
-//     // }
-//     compressed_size = compressed.size();
-//     std::cout<< "compressed size = " << compressed.size() << std::endl;
-//     verify(data, decompressed.data(), r1*r2);
-//     verify(data, ddata, r1*r2);
-// }
-
 template<typename Type>
 mgard::DecompressedDataset<3, Type> compress_decompress_3d(Type *data, size_t r1, size_t r2, size_t r3, float eb, float s, size_t& compressed_size){
     Type max = data[0];
@@ -241,7 +215,7 @@ int main(int argc, char ** argv){
     	dimensions[num_dims-1-i] = (size_t)atoi(argv[5 + i]);
 	//printf(" dim[%d] = %d", num_dims-1-i,dimensions[num_dims-1-i]);
     }
-    float max=0, min=0;
+    float max=data[0], min=data[0];
     for (size_t i=0;i<num_elements;i++){
 	    if (data[i]>max) max=data[i];
 	    if (data[i]<min) min=data[i];
@@ -253,31 +227,40 @@ int main(int argc, char ** argv){
     Timer timer;
 
     if(num_dims == 2){
-	    // const array<size_t, 2> dims = {dimensions[0], dimensions[1]};
-	    // const mgard::TensorMeshHierarchy<2, T> hierarchy(dims);
-	    // const size_t ndof = hierarchy.ndof();
-	    // timer.start();
-	    // mgard::CompressedDataset<2, T> compressed = mgard::compress(hierarchy, data, s, eb);
-	    // timer.end();
-	    // printf("mgard compress time = %f \n", timer.get());
-	    // timer.start();
-	    // mgard::DecompressedDataset<2, T> decompressed = mgard::decompress(compressed);
-	    // timer.end();
-	    // printf("mgard decompress time = %f \n", timer.get());
-	    // writefile((string(argv[1]) + ".mgard.out").c_str(), decompressed.data(), num_elements);
-	    // printf("compressionRatio = %.4f\n", 1.0*num_elements*sizeof(T) / compressed.size());
-        //         printf("bitrate = %.4f\n", 32*1.0/(1.0*num_elements*sizeof(T) / compressed.size()));
+	    const array<size_t, 2> dims = {dimensions[0], dimensions[1]};
+        std::cout<< "dims = " << dims[0] << " " << dims[1] << std::endl;
+	    const mgard::TensorMeshHierarchy<2, T> hierarchy(dims);
+	    const size_t ndof = hierarchy.ndof();
+	    timer.start();
+	    mgard::CompressedDataset<2, T> compressed = mgard::compress(hierarchy, data, s, eb);
+	    timer.end();
+	    printf("mgard compress time = %f \n", timer.get());
+	    timer.start();
+	    mgard::DecompressedDataset<2, T> decompressed = mgard::decompress(compressed);
+	    timer.end();
+	    printf("mgard decompress time = %f \n", timer.get());
+	    writefile((string(argv[1]) + ".mgard.out").c_str(), decompressed.data(), num_elements);
+	    printf("compressionRatio = %.4f\n", 1.0*num_elements*sizeof(T) / compressed.size());
+                printf("bitrate = %.4f\n", 32*1.0/(1.0*num_elements*sizeof(T) / compressed.size()));
 
-	    // verify(data, decompressed.data(), num_elements);
+	    verify(data, decompressed.data(), num_elements);
         // size_t compressed_size = 0;
-        // const T* decompressed_data =  compress_decompress_float(data, num_dims, dimensions.data(), eb, s,compressed_size);
+        // const T* decompressed_data =  compress_decompress_float(data, num_dims, dimensions.data(), atof(argv[2]), s,compressed_size);
         // printf("compressed_size = %d\n", compressed_size);
         // verify(data, decompressed_data, num_elements);
 
-        std::vector<float> ddata;
-        ddata.resize(num_elements);
+        // std::vector<float> ddata;
+        // ddata.resize(num_elements);
         size_t compressed_size = 0;
-        compress_decompress(data, ddata.data(),num_dims,dimensions.data() , eb, s,compressed_size);
+        // // compress_decompress(data, ddata.data(),num_dims,dimensions.data() , eb, s,compressed_size);
+
+        mgard::DecompressedDataset<2, T> decompresseddata = compress_decompress_2d(data,  dimensions[0],  dimensions[1], eb,  s,  compressed_size);
+        writefile((string(argv[1]) + ".mgard.out").c_str(), decompresseddata.data(), num_elements);
+        printf("compressionRatio = %.4f\n", 1.0*num_elements*sizeof(T) /compressed_size);
+        printf("bitrate = %.4f\n", 32*1.0/(1.0*num_elements*sizeof(T) / compressed_size));
+
+        // verify(data, decompressed.data(), num_elements);
+
 
 	}
 	else if(num_dims == 3){
