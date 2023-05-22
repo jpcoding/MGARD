@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.9)
 project(mgardpy)
-find_package(MGARD REQUIRED HINTS "/home/jp/git/MGARD/install")
+find_package(MGARD REQUIRED HINTS "../../install")
 
 add_executable(test_mgard cpp/test_mgard.cpp)
 target_link_libraries(test_mgard mgard::mgard)
