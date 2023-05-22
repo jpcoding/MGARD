@@ -110,7 +110,7 @@ void writefile(const char * file, Type * data, size_t num_elements){
 }
 
 template<typename Type>
-const Type * compress_decompress_2d(Type *data,size_t r1, size_t r2, float eb, float s, size_t& compressed_size){
+mgard::DecompressedDataset<2, Type> compress_decompress_2d(Type *data,size_t r1, size_t r2, float eb, float s, size_t& compressed_size){
     Type max = data[0];
     Type min = data[0];
     for(size_t i=0; i<r1*r2; i++){
@@ -133,14 +133,14 @@ const Type * compress_decompress_2d(Type *data,size_t r1, size_t r2, float eb, f
     compressed_size = compressed.size();
     std::cout<< "compressed size = " << compressed.size() << std::endl;
     verify(data, decompressed.data(), r1*r2);
-    return decompressed.data();
+    return decompressed;
 }
 
 template<typename Type>
 void compress_decompress_2d(Type *data, Type *ddata, size_t r1, size_t r2, float eb, float s, size_t& compressed_size)
 {
-    const Type *decompressed = compress_decompress_2d(data,  r1,  r2, eb,  s,  compressed_size);
-    std::copy(decompressed, decompressed+r1*r2,ddata);
+    mgard::DecompressedDataset<2, Type> decompressed = compress_decompress_2d(data,  r1,  r2, eb,  s,  compressed_size);
+    std::copy(decompressed.data(), decompressed.data()+r1*r2,ddata);
 }
 
 
@@ -176,7 +176,7 @@ void compress_decompress_2d(Type *data, Type *ddata, size_t r1, size_t r2, float
 // }
 
 template<typename Type>
-const Type* compress_decompress_3d(Type *data, size_t r1, size_t r2, size_t r3, float eb, float s, size_t& compressed_size){
+mgard::DecompressedDataset<3, Type> compress_decompress_3d(Type *data, size_t r1, size_t r2, size_t r3, float eb, float s, size_t& compressed_size){
     Type max = data[0];
     Type min = data[0];
     for(size_t i=0; i<r1*r2*r3; i++){
@@ -198,14 +198,14 @@ const Type* compress_decompress_3d(Type *data, size_t r1, size_t r2, size_t r3, 
     printf("mgard decompress time = %f \n", timer.get());
     compressed_size = compressed.size();
     verify(data, decompressed.data(), r1*r2*r3);
-    return decompressed.data();
+    return decompressed;
 }
 
 
 template<typename Type>
 void compress_decompress_3d(Type *data, Type *ddata, size_t r1, size_t r2, size_t r3, float eb, float s, size_t& compressed_size){
-    const Type *decompressed = compress_decompress_3d(data,  r1,  r2,  r3,  eb,  s,  compressed_size);
-    std::copy(decompressed, decompressed+r1*r2*r3,ddata);
+    mgard::DecompressedDataset<3, Type> decompressed = compress_decompress_3d(data,  r1,  r2,  r3,  eb,  s,  compressed_size);
+    std::copy(decompressed.data(), decompressed.data()+r1*r2*r3,ddata);
 }
 
 
