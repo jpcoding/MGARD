@@ -1,11 +1,7 @@
 import sys
 import ctypes
-from ctypes.util import find_library
 import numpy as np
-
-"""
-Python API for SZ2/SZ3
-"""
+from ctypes.util import find_library
 
 class mgard:
 
@@ -18,37 +14,57 @@ class mgard:
 
         if mgard_path ==None:
             mgard_path = {
-                "darwin": "libmgardpy.dylib",
-                "windows": "libmgardpy.dll",
-            }.get(sys.platform, "libmgardpy.so")
+                "darwin": "../install/lib/libmgardpy.dylib",
+                "windows": "../install/lib/libmgardpy.dll",
+            }.get(sys.platform, "../install/lib/libmgardpy.so")
 
         self.mgard = ctypes.CDLL(mgard_path)
         
         """
         float * compress_decompress(float * data, int N, size_t* dims, float eb, float s, size_t& compressed_size)
         """
-        self.mgard.compress_decompress.argtyp =[
-            np.ctypeslib.ndpointer(dtype=np.float32, ndim=1, flags="C_CONTIGUOUS"),
-            ctypes.c_int,
-            np.ctypeslib.ndpointer(dtype=np.uint64, ndim=1, flags="C_CONTIGUOUS"),
-            ctypes.c_float,
-            ctypes.c_float,
-            ctypes.POINTER(ctypes.c_size_t)
-        ]
-        self.mgard.compress_decompress.restype = np.ctypeslib.ndpointer(dtype=np.float32, ndim=1, flags="C_CONTIGUOUS")
+        self.mgard.compress_decompress_float.argtypes =[ctypes.POINTER(ctypes.c_float), 
+                                                  ctypes.POINTER(ctypes.c_float), 
+                                                  ctypes.c_int, 
+                                                  ctypes.POINTER(ctypes.c_size_t),
+                                                  ctypes.c_float, 
+                                                  ctypes.c_float,
+                                                  ctypes.POINTER(ctypes.c_size_t)]
         
     def compress_decompress(self, data, eb, s):
         """
-        compress_decompress(float * data, int N, size_t* dims, float eb, float s, size_t& compressed_size)
+        compress_decompress(float * data, float* ddata, int N, size_t* dims, float eb, float s, size_t& compressed_size)
         """
-        dims = np.array(data.shape, dtype=np.uint64)
-        print(dims)
-
-        compressed_size = ctypes.c_size_t(0)
-        decompressed_data = self.mgard.compress_decompress(data, len(dims), dims, eb, s, ctypes.byref(compressed_size))
-
-        ratio =(data.size * 4)/ compressed_size.value 
-        decompressed_data = np.asarry(decompressed_data[:np.prod(dims)]).reshape(dims)
-        return decompressed_data, ratio 
+        data_ptr = data.ctypes.data_as(ctypes.POINTER(ctypes.c_float))
+        # ddata = np.z(data.size, dtype=np.float32)
+        ddata = np.zeros(data.shape, dtype=np.float32)
         
+        ddata_ptr = ddata.ctypes.data_as(ctypes.POINTER(ctypes.c_float))
+        dims = np.asarray(data.shape).astype(np.uint64).ctypes.data_as(ctypes.POINTER(ctypes.c_size_t))
+        N = ctypes.c_int(len(data.shape))
+        print(N)
+        compressed_size = ctypes.c_size_t()
+        # eb = ctypes.c_float(eb)
+        # s = ctypes.c_float(s)
+        self.mgard.compress_decompress_float(data_ptr, ddata_ptr, N, dims, eb, s, ctypes.byref(compressed_size))
 
+        ratio = (data.size * data.itemsize)/ float(compressed_size.value)
+        print(ratio)
+        return ddata, ratio
+    
+    def verify(self, src_data, dec_data):
+        """
+        Compare the decompressed data with original data
+        :param src_data: original data, numpy array
+        :param dec_data: decompressed data, numpy array
+        :return: max_diff, psnr, nrmse
+        """
+        data_range = np.max(src_data) - np.min(src_data)
+        diff = src_data - dec_data
+        max_diff = np.max(abs(diff))
+        print("abs err={:.8G}".format(max_diff))
+        mse = np.mean(diff ** 2)
+        nrmse = np.sqrt(mse) / data_range
+        psnr = 20 * np.log10(data_range) - 10 * np.log10(mse)
+        return max_diff, psnr, nrmse
+        
