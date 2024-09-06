@@ -40,6 +40,7 @@ bin/
 *.bp
 *.bp.dir
 build/
+install/
 
 # Mac OSX finder-related files
 .DS_Store
@@ -59,3 +60,6 @@ CMakeSettings.json
 
 #'Tags' file.
 tags
+
+# clangd
+.cache/
