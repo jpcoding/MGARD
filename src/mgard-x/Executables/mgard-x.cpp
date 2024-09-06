@@ -576,11 +576,11 @@ bool try_compression(int argc, char *argv[]) {
     std::cout << mgard_x::log::log_info << "Verbose: enabled\n";
   for (int repeat_iter = 0; repeat_iter < repeat; repeat_iter++) {
     if (dtype == mgard_x::data_type::Double) {
-      launch_compress<double>(
-          D, dtype, input_file.c_str(), output_file.c_str(), shape, non_uniform,
-          non_uniform_coords_file.c_str(), tol, s, mode, reorder,
-          lossless_level, domain_decomposition, hybrid_decomposition, dev_type,
-          verbose, prefetch, max_memory_footprint);
+      // launch_compress<double>(
+      //     D, dtype, input_file.c_str(), output_file.c_str(), shape, non_uniform,
+      //     non_uniform_coords_file.c_str(), tol, s, mode, reorder,
+      //     lossless_level, domain_decomposition, hybrid_decomposition, dev_type,
+      //     verbose, prefetch, max_memory_footprint);
     } else if (dtype == mgard_x::data_type::Float) {
       launch_compress<float>(
           D, dtype, input_file.c_str(), output_file.c_str(), shape, non_uniform,

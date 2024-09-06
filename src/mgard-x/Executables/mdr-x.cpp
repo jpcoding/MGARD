@@ -723,10 +723,10 @@ bool try_refactoring(int argc, char *argv[]) {
     std::cout << mgard_x::log::log_info << "Verbose: enabled\n";
   for (int repeat_iter = 0; repeat_iter < repeat; repeat_iter++) {
     if (dtype == mgard_x::data_type::Double) {
-      launch_refactor<double>(
-          D, dtype, input_file.c_str(), output_file.c_str(), shape, non_uniform,
-          non_uniform_coords_file.c_str(), lossless_level, domain_decomposition,
-          dev_type, verbose, prefetch, max_memory_footprint);
+      // launch_refactor<double>(
+      //     D, dtype, input_file.c_str(), output_file.c_str(), shape, non_uniform,
+      //     non_uniform_coords_file.c_str(), lossless_level, domain_decomposition,
+      //     dev_type, verbose, prefetch, max_memory_footprint);
     } else if (dtype == mgard_x::data_type::Float) {
       launch_refactor<float>(
           D, dtype, input_file.c_str(), output_file.c_str(), shape, non_uniform,

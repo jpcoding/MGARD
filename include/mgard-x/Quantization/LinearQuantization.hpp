@@ -492,6 +492,11 @@ public:
     quantizers_array.resize({hierarchy.l_target() + 1}, queue_idx);
   }
 
+  SIZE get_dict_size()
+  {
+    return config.huff_dict_size;
+  }
+
   void CalcQuantizers(size_t dof, T *quantizers, enum error_bound_type type,
                       T tol, T s, T norm, SIZE l_target,
                       enum decomposition_type decomposition, bool reciprocal) {

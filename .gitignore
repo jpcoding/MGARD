@@ -1,5 +1,10 @@
 #Object files.
 obj/
+build/
+install/
+.github 
+.cache
+release/
 
 #Archives.
 lib/
