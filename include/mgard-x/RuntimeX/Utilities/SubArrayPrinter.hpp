@@ -357,6 +357,7 @@ void verify_matrix(SIZE nrow, SIZE ncol, SIZE nfib, T *v, SIZE ldv1, SIZE ldv2,
         }
       }
     }
+    printf("Mismatch result: %d\n", mismatch);
 
     delete[] v2;
     if (mismatch)
@@ -381,10 +382,8 @@ void verify_matrix_cuda(SIZE nrow, SIZE ncol, SIZE nfib, T *dv, SIZE lddv1,
     //                         ncol, dv, lddv1 * sizeof(T), sizex * sizeof(T),
     //                         lddv2, nfib * sizeof(T), ncol, nrow, D2H,
     //                         queue_idx);
-    // MemoryManager<CUDA>::CopyND(v, nfib, dv, lddv1,
-    //                           nfib, ncol * nrow, 0);
-    // DeviceRuntime<CUDA>::SyncQueue(0);
-    // tmp_handle->sync(queue_idx);
+    // MemoryManager<DeviceType>::CopyND(v, nfib, dv, lddv1, nfib, ncol * nrow,
+    // 0); DeviceRuntime<CUDA>::SyncQueue(0); tmp_handle->sync(queue_idx);
     verify_matrix(nrow, ncol, nfib, v, nfib, ncol, file_prefix, store, verify);
     delete[] v;
     // delete tmp_handle;
@@ -475,6 +474,65 @@ void LoadSubArray(std::string name, SubArray<D, T, DeviceType> subArray) {
   MemoryManager<DeviceType>::CopyND(subArray.data(), subArray.ld(D - 1), v,
                                     nfib, nfib, ncol * nrow, 0);
   delete[] v;
+}
+
+template <DIM D, typename T, typename DeviceType>
+void VerifySubArray(std::string name, SubArray<D, T, DeviceType> subArray,
+                    bool dump, bool verify) {
+  if (dump) {
+    printf("dump %s\n", name.c_str());
+    DumpSubArray(name, subArray);
+  }
+  if (verify) {
+    SIZE nrow = 1;
+    SIZE ncol = 1;
+    SIZE nfib = 1;
+
+    nfib = subArray.shape(D - 1);
+    if (D >= 2)
+      ncol = subArray.shape(D - 2);
+    if (D >= 3)
+      nrow = subArray.shape(D - 3);
+
+    T *v1 = new T[nrow * ncol * nfib];
+    T *v2 = new T[nrow * ncol * nfib];
+
+    std::fstream myfile;
+    myfile.open(name, std::ios::in | std::ios::binary);
+    if (!myfile) {
+      printf("Error: cannot open file\n");
+      return;
+    }
+    myfile.read((char *)v1, nrow * ncol * nfib * sizeof(T));
+    myfile.close();
+    if (!myfile.good()) {
+      printf("Error occurred at read time!\n");
+      return;
+    }
+
+    MemoryManager<DeviceType>::CopyND(v2, nfib, subArray.data(),
+                                      subArray.ld(D - 1), nfib, ncol * nrow, 0);
+    DeviceRuntime<DeviceType>::SyncQueue(0);
+
+    printf("verify %s\n", name.c_str());
+    bool pass = true;
+    for (int i = 0; i < nrow; i++) {
+      for (int j = 0; j < ncol; j++) {
+        for (int k = 0; k < nfib; k++) {
+          if (v1[i * ncol * nfib + j * nfib + k] !=
+              v2[i * ncol * nfib + j * nfib + k]) {
+            pass = false;
+            printf("diff at [%d][%d][%d]: ", i, j, k);
+            std::cout << v1[i * ncol * nfib + j * nfib + k] << ", "
+                      << v2[i * ncol * nfib + j * nfib + k] << "\n";
+          }
+        }
+      }
+    }
+    printf("pass: %d\n", pass);
+    delete[] v1;
+    delete[] v2;
+  }
 }
 
 } // namespace mgard_x

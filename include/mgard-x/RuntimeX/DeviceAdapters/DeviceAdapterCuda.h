@@ -112,8 +112,8 @@ MGARDX_EXEC static double atomicAdd(double *address, double val) {
 namespace mgard_x {
 
 template <typename TaskType>
-inline void ErrorAsyncCheck(cudaError_t code, TaskType &task,
-                            bool abort = true) {
+inline void ErrorAsyncCheckTask(cudaError_t code, TaskType &task,
+                                bool abort = true) {
   if (code != cudaSuccess) {
     log::err(std::string(cudaGetErrorString(code)) + " while executing " +
              task.GetFunctorName().c_str() + " with CUDA (Async-check)");
@@ -123,11 +123,31 @@ inline void ErrorAsyncCheck(cudaError_t code, TaskType &task,
 }
 
 template <typename TaskType>
-inline void ErrorSyncCheck(cudaError_t code, TaskType &task,
-                           bool abort = true) {
+inline void ErrorSyncCheckTask(cudaError_t code, TaskType &task,
+                               bool abort = true) {
   if (code != cudaSuccess) {
     log::err(std::string(cudaGetErrorString(code)) + " while executing " +
              task.GetFunctorName().c_str() + " with CUDA (Sync-check)");
+    if (abort)
+      exit(code);
+  }
+}
+
+inline void ErrorAsyncCheck(cudaError_t code, std::string task,
+                            bool abort = true) {
+  if (code != cudaSuccess) {
+    log::err(std::string(cudaGetErrorString(code)) + " while executing " +
+             task.c_str() + " with CUDA (Async-check)");
+    if (abort)
+      exit(code);
+  }
+}
+
+inline void ErrorSyncCheck(cudaError_t code, std::string task,
+                           bool abort = true) {
+  if (code != cudaSuccess) {
+    log::err(std::string(cudaGetErrorString(code)) + " while executing " +
+             task.c_str() + " with CUDA (Sync-check)");
     if (abort)
       exit(code);
   }
@@ -255,26 +275,26 @@ MGARDX_KERL void CudaKernel(Task task, THREAD_IDX blockz_offset,
   task.GetFunctor().Operation9();
   SyncBlock<CUDA>::Sync();
   task.GetFunctor().Operation10();
-  SyncBlock<CUDA>::Sync();
-  task.GetFunctor().Operation11();
-  SyncBlock<CUDA>::Sync();
-  task.GetFunctor().Operation12();
-  SyncBlock<CUDA>::Sync();
-  task.GetFunctor().Operation13();
-  SyncBlock<CUDA>::Sync();
-  task.GetFunctor().Operation14();
-  SyncBlock<CUDA>::Sync();
-  task.GetFunctor().Operation15();
-  SyncBlock<CUDA>::Sync();
-  task.GetFunctor().Operation16();
-  SyncBlock<CUDA>::Sync();
-  task.GetFunctor().Operation17();
-  SyncBlock<CUDA>::Sync();
-  task.GetFunctor().Operation18();
-  SyncBlock<CUDA>::Sync();
-  task.GetFunctor().Operation19();
-  SyncBlock<CUDA>::Sync();
-  task.GetFunctor().Operation20();
+  // SyncBlock<CUDA>::Sync();
+  // task.GetFunctor().Operation11();
+  // SyncBlock<CUDA>::Sync();
+  // task.GetFunctor().Operation12();
+  // SyncBlock<CUDA>::Sync();
+  // task.GetFunctor().Operation13();
+  // SyncBlock<CUDA>::Sync();
+  // task.GetFunctor().Operation14();
+  // SyncBlock<CUDA>::Sync();
+  // task.GetFunctor().Operation15();
+  // SyncBlock<CUDA>::Sync();
+  // task.GetFunctor().Operation16();
+  // SyncBlock<CUDA>::Sync();
+  // task.GetFunctor().Operation17();
+  // SyncBlock<CUDA>::Sync();
+  // task.GetFunctor().Operation18();
+  // SyncBlock<CUDA>::Sync();
+  // task.GetFunctor().Operation19();
+  // SyncBlock<CUDA>::Sync();
+  // task.GetFunctor().Operation20();
 }
 
 template <typename Task>
@@ -353,29 +373,31 @@ MGARDX_KERL void CudaHuffmanCLCustomizedKernel(Task task) {
     SyncGrid<CUDA>::Sync();
     task.GetFunctor().Operation4();
     SyncGrid<CUDA>::Sync();
+    task.GetFunctor().Operation5();
+    SyncGrid<CUDA>::Sync();
     if (task.GetFunctor().BranchCondition1()) {
-      task.GetFunctor().Operation5();
+      task.GetFunctor().Operation6();
       SyncBlock<CUDA>::Sync();
       while (task.GetFunctor().LoopCondition2()) {
-        task.GetFunctor().Operation6();
-        SyncBlock<CUDA>::Sync();
         task.GetFunctor().Operation7();
         SyncBlock<CUDA>::Sync();
         task.GetFunctor().Operation8();
         SyncBlock<CUDA>::Sync();
+        task.GetFunctor().Operation9();
+        SyncBlock<CUDA>::Sync();
       }
-      task.GetFunctor().Operation9();
-      SyncGrid<CUDA>::Sync();
       task.GetFunctor().Operation10();
       SyncGrid<CUDA>::Sync();
+      task.GetFunctor().Operation11();
+      SyncGrid<CUDA>::Sync();
     }
-    task.GetFunctor().Operation11();
-    SyncGrid<CUDA>::Sync();
     task.GetFunctor().Operation12();
     SyncGrid<CUDA>::Sync();
     task.GetFunctor().Operation13();
     SyncGrid<CUDA>::Sync();
     task.GetFunctor().Operation14();
+    SyncGrid<CUDA>::Sync();
+    task.GetFunctor().Operation15();
     SyncGrid<CUDA>::Sync();
   }
 }
@@ -405,6 +427,7 @@ SINGLE_KERNEL(Operation11);
 SINGLE_KERNEL(Operation12);
 SINGLE_KERNEL(Operation13);
 SINGLE_KERNEL(Operation14);
+SINGLE_KERNEL(Operation15);
 
 #undef SINGLE_KERNEL
 
@@ -416,17 +439,17 @@ template <typename Task> MGARDX_KERL void CudaParallelMergeKernel(Task task) {
                          blockIdx.x, threadIdx.z, threadIdx.y, threadIdx.x,
                          shared_memory);
 
-  task.GetFunctor().Operation5();
+  task.GetFunctor().Operation6();
   SyncBlock<CUDA>::Sync();
   while (task.GetFunctor().LoopCondition2()) {
-    task.GetFunctor().Operation6();
-    SyncBlock<CUDA>::Sync();
     task.GetFunctor().Operation7();
     SyncBlock<CUDA>::Sync();
     task.GetFunctor().Operation8();
     SyncBlock<CUDA>::Sync();
+    task.GetFunctor().Operation9();
+    SyncBlock<CUDA>::Sync();
   }
-  task.GetFunctor().Operation9();
+  task.GetFunctor().Operation10();
 }
 
 template <typename Task>
@@ -525,7 +548,7 @@ public:
     gpuErrchk(cudaSetDevice(dev_id));
     size_t free, total;
     cudaMemGetInfo(&free, &total);
-    AvailableMemory[dev_id] = free;
+    AvailableMemory[dev_id] = total;
 
     return AvailableMemory[dev_id];
   }
@@ -566,47 +589,65 @@ public:
 template <> class DeviceQueues<CUDA> {
 public:
   MGARDX_CONT
-  DeviceQueues() {
-    cudaGetDeviceCount(&NumDevices);
-    streams = new cudaStream_t *[NumDevices];
-    for (int d = 0; d < NumDevices; d++) {
-      gpuErrchk(cudaSetDevice(d));
-      streams[d] = new cudaStream_t[MGARDX_NUM_QUEUES];
-      for (SIZE i = 0; i < MGARDX_NUM_QUEUES; i++) {
-        gpuErrchk(cudaStreamCreate(&streams[d][i]));
+  void Initialize() {
+    if (!initialized) {
+      log::dbg("Calling DeviceQueues<CUDA>::Initialize");
+      cudaGetDeviceCount(&NumDevices);
+      streams = new cudaStream_t *[NumDevices];
+      for (int d = 0; d < NumDevices; d++) {
+        gpuErrchk(cudaSetDevice(d));
+        streams[d] = new cudaStream_t[MGARDX_NUM_QUEUES];
+        for (SIZE i = 0; i < MGARDX_NUM_QUEUES; i++) {
+          gpuErrchk(cudaStreamCreate(&streams[d][i]));
+        }
       }
+      initialized = true;
     }
   }
 
+  MGARDX_CONT
+  void Destroy() {
+    if (initialized) {
+      log::dbg("Calling DeviceQueues<CUDA>::Destroy");
+      for (int d = 0; d < NumDevices; d++) {
+        gpuErrchk(cudaSetDevice(d));
+        for (int i = 0; i < MGARDX_NUM_QUEUES; i++) {
+          gpuErrchk(cudaStreamDestroy(streams[d][i]));
+        }
+        delete[] streams[d];
+      }
+      delete[] streams;
+      streams = nullptr;
+      initialized = false;
+    }
+  }
+
+  MGARDX_CONT
+  DeviceQueues() { Initialize(); }
+
   MGARDX_CONT cudaStream_t GetQueue(int dev_id, SIZE queue_id) {
+    Initialize();
     return streams[dev_id][queue_id];
   }
 
   MGARDX_CONT void SyncQueue(int dev_id, SIZE queue_id) {
+    Initialize();
     cudaStreamSynchronize(streams[dev_id][queue_id]);
   }
 
   MGARDX_CONT void SyncAllQueues(int dev_id) {
+    Initialize();
     for (SIZE i = 0; i < MGARDX_NUM_QUEUES; i++) {
       gpuErrchk(cudaStreamSynchronize(streams[dev_id][i]));
     }
   }
 
   MGARDX_CONT
-  ~DeviceQueues() {
-    for (int d = 0; d < NumDevices; d++) {
-      gpuErrchk(cudaSetDevice(d));
-      for (int i = 0; i < MGARDX_NUM_QUEUES; i++) {
-        gpuErrchk(cudaStreamDestroy(streams[d][i]));
-      }
-      delete[] streams[d];
-    }
-    delete[] streams;
-    streams = nullptr;
-  }
+  ~DeviceQueues() {}
 
   int NumDevices;
   cudaStream_t **streams = nullptr;
+  bool initialized = false;
 };
 
 extern int cuda_dev_id;
@@ -616,6 +657,10 @@ template <> class DeviceRuntime<CUDA> {
 public:
   MGARDX_CONT
   DeviceRuntime() {}
+
+  MGARDX_CONT static void Initialize() { queues.Initialize(); }
+
+  MGARDX_CONT static void Finalize() { queues.Destroy(); }
 
   MGARDX_CONT static int GetDeviceCount() { return DeviceSpecs.NumDevices; }
 
@@ -1940,61 +1985,65 @@ template <typename Task> void CudaHuffmanCLCustomizedNoCGKernel(Task task) {
   // std::cout << "calling Single_Operation1_Kernel\n";
   Single_Operation1_Kernel<<<blockPerGrid, threadsPerBlock, sm_size, stream>>>(
       task);
-  ErrorSyncCheck(cudaDeviceSynchronize(), task);
+  ErrorSyncCheckTask(cudaDeviceSynchronize(), task);
 
   // std::cout << "calling LoopCondition1\n";
   while (task.GetFunctor().LoopCondition1()) {
-    ErrorSyncCheck(cudaDeviceSynchronize(), task);
+    ErrorSyncCheckTask(cudaDeviceSynchronize(), task);
 
     // std::cout << "calling Single_Operation2_Kernel\n";
     Single_Operation2_Kernel<<<blockPerGrid, threadsPerBlock, sm_size,
                                stream>>>(task);
-    ErrorSyncCheck(cudaDeviceSynchronize(), task);
+    ErrorSyncCheckTask(cudaDeviceSynchronize(), task);
 
     // std::cout << "calling Single_Operation3_Kernel\n";
     Single_Operation3_Kernel<<<blockPerGrid, threadsPerBlock, sm_size,
                                stream>>>(task);
-    ErrorSyncCheck(cudaDeviceSynchronize(), task);
+    ErrorSyncCheckTask(cudaDeviceSynchronize(), task);
 
-    // std::cout << "calling Single_Operation4_Kernel\n";
     Single_Operation4_Kernel<<<blockPerGrid, threadsPerBlock, sm_size,
                                stream>>>(task);
-    ErrorSyncCheck(cudaDeviceSynchronize(), task);
+    ErrorSyncCheckTask(cudaDeviceSynchronize(), task);
+
+    // std::cout << "calling Single_Operation4_Kernel\n";
+    Single_Operation5_Kernel<<<blockPerGrid, threadsPerBlock, sm_size,
+                               stream>>>(task);
+    ErrorSyncCheckTask(cudaDeviceSynchronize(), task);
 
     // std::cout << "calling BranchCondition1\n";
     if (task.GetFunctor().BranchCondition1()) {
-      ErrorSyncCheck(cudaDeviceSynchronize(), task);
+      ErrorSyncCheckTask(cudaDeviceSynchronize(), task);
 
       // std::cout << "calling CudaParallelMergeKernel\n";
       CudaParallelMergeKernel<<<blockPerGrid, threadsPerBlock, sm_size,
                                 stream>>>(task);
-      ErrorSyncCheck(cudaDeviceSynchronize(), task);
+      ErrorSyncCheckTask(cudaDeviceSynchronize(), task);
 
       // std::cout << "calling Single_Operation10_Kernel\n";
-      Single_Operation10_Kernel<<<blockPerGrid, threadsPerBlock, sm_size,
+      Single_Operation11_Kernel<<<blockPerGrid, threadsPerBlock, sm_size,
                                   stream>>>(task);
-      ErrorSyncCheck(cudaDeviceSynchronize(), task);
+      ErrorSyncCheckTask(cudaDeviceSynchronize(), task);
     }
 
     // std::cout << "calling Single_Operation11_Kernel\n";
-    Single_Operation11_Kernel<<<blockPerGrid, threadsPerBlock, sm_size,
-                                stream>>>(task);
-    ErrorSyncCheck(cudaDeviceSynchronize(), task);
-
-    // std::cout << "calling Single_Operation12_Kernel\n";
     Single_Operation12_Kernel<<<blockPerGrid, threadsPerBlock, sm_size,
                                 stream>>>(task);
-    ErrorSyncCheck(cudaDeviceSynchronize(), task);
+    ErrorSyncCheckTask(cudaDeviceSynchronize(), task);
 
-    // std::cout << "calling Single_Operation13_Kernel\n";
+    // std::cout << "calling Single_Operation12_Kernel\n";
     Single_Operation13_Kernel<<<blockPerGrid, threadsPerBlock, sm_size,
                                 stream>>>(task);
-    ErrorSyncCheck(cudaDeviceSynchronize(), task);
+    ErrorSyncCheckTask(cudaDeviceSynchronize(), task);
 
-    // std::cout << "calling Single_Operation14_Kernel\n";
+    // std::cout << "calling Single_Operation13_Kernel\n";
     Single_Operation14_Kernel<<<blockPerGrid, threadsPerBlock, sm_size,
                                 stream>>>(task);
-    ErrorSyncCheck(cudaDeviceSynchronize(), task);
+    ErrorSyncCheckTask(cudaDeviceSynchronize(), task);
+
+    // std::cout << "calling Single_Operation14_Kernel\n";
+    Single_Operation15_Kernel<<<blockPerGrid, threadsPerBlock, sm_size,
+                                stream>>>(task);
+    ErrorSyncCheckTask(cudaDeviceSynchronize(), task);
   }
 }
 
@@ -2009,55 +2058,55 @@ template <typename Task> void CudaHuffmanCWCustomizedNoCGKernel(Task task) {
   // std::cout << "calling Single_Operation1_Kernel\n";
   Single_Operation1_Kernel<<<blockPerGrid, threadsPerBlock, sm_size, stream>>>(
       task);
-  ErrorSyncCheck(cudaDeviceSynchronize(), task);
+  ErrorSyncCheckTask(cudaDeviceSynchronize(), task);
   // std::cout << "calling Single_Operation2_Kernel\n";
   Single_Operation2_Kernel<<<blockPerGrid, threadsPerBlock, sm_size, stream>>>(
       task);
-  ErrorSyncCheck(cudaDeviceSynchronize(), task);
+  ErrorSyncCheckTask(cudaDeviceSynchronize(), task);
   // std::cout << "calling Single_Operation3_Kernel\n";
   Single_Operation3_Kernel<<<blockPerGrid, threadsPerBlock, sm_size, stream>>>(
       task);
-  ErrorSyncCheck(cudaDeviceSynchronize(), task);
+  ErrorSyncCheckTask(cudaDeviceSynchronize(), task);
 
   // std::cout << "calling LoopCondition1\n";
   while (task.GetFunctor().LoopCondition1()) {
-    ErrorSyncCheck(cudaDeviceSynchronize(), task);
+    ErrorSyncCheckTask(cudaDeviceSynchronize(), task);
 
     // std::cout << "calling Single_Operation4_Kernel\n";
     Single_Operation4_Kernel<<<blockPerGrid, threadsPerBlock, sm_size,
                                stream>>>(task);
-    ErrorSyncCheck(cudaDeviceSynchronize(), task);
+    ErrorSyncCheckTask(cudaDeviceSynchronize(), task);
 
     // std::cout << "calling Single_Operation5_Kernel\n";
     Single_Operation5_Kernel<<<blockPerGrid, threadsPerBlock, sm_size,
                                stream>>>(task);
-    ErrorSyncCheck(cudaDeviceSynchronize(), task);
+    ErrorSyncCheckTask(cudaDeviceSynchronize(), task);
 
     // std::cout << "calling Single_Operation6_Kernel\n";
     Single_Operation6_Kernel<<<blockPerGrid, threadsPerBlock, sm_size,
                                stream>>>(task);
-    ErrorSyncCheck(cudaDeviceSynchronize(), task);
+    ErrorSyncCheckTask(cudaDeviceSynchronize(), task);
 
     // std::cout << "calling Single_Operation7_Kernel\n";
     Single_Operation7_Kernel<<<blockPerGrid, threadsPerBlock, sm_size,
                                stream>>>(task);
-    ErrorSyncCheck(cudaDeviceSynchronize(), task);
+    ErrorSyncCheckTask(cudaDeviceSynchronize(), task);
 
     // std::cout << "calling Single_Operation8_Kernel\n";
     Single_Operation8_Kernel<<<blockPerGrid, threadsPerBlock, sm_size,
                                stream>>>(task);
-    ErrorSyncCheck(cudaDeviceSynchronize(), task);
+    ErrorSyncCheckTask(cudaDeviceSynchronize(), task);
   }
 
   // std::cout << "calling Single_Operation9_Kernel\n";
   Single_Operation9_Kernel<<<blockPerGrid, threadsPerBlock, sm_size, stream>>>(
       task);
-  ErrorSyncCheck(cudaDeviceSynchronize(), task);
+  ErrorSyncCheckTask(cudaDeviceSynchronize(), task);
 
   // std::cout << "calling Single_Operation10_Kernel\n";
   Single_Operation10_Kernel<<<blockPerGrid, threadsPerBlock, sm_size, stream>>>(
       task);
-  ErrorSyncCheck(cudaDeviceSynchronize(), task);
+  ErrorSyncCheckTask(cudaDeviceSynchronize(), task);
 }
 
 #define MGARD_CUDA_MAX_GRID_X 2147483647
@@ -2172,10 +2221,10 @@ public:
         CudaHuffmanCWCustomizedNoCGKernel(task);
       }
     }
-    ErrorAsyncCheck(cudaGetLastError(), task);
+    ErrorAsyncCheckTask(cudaGetLastError(), task);
     gpuErrchk(cudaGetLastError());
     if (DeviceRuntime<CUDA>::SyncAllKernelsAndCheckErrors) {
-      ErrorSyncCheck(cudaDeviceSynchronize(), task);
+      ErrorSyncCheckTask(cudaDeviceSynchronize(), task);
     }
 
     if (task.GetQueueIdx() == MGARDX_SYNCHRONIZED_QUEUE ||
@@ -2301,10 +2350,9 @@ public:
         CudaHuffmanCWCustomizedNoCGKernel(task);
       }
     }
-    ErrorAsyncCheck(cudaGetLastError(), task);
-    gpuErrchk(cudaGetLastError());
+    ErrorAsyncCheckTask(cudaGetLastError(), task);
     if (DeviceRuntime<CUDA>::SyncAllKernelsAndCheckErrors) {
-      ErrorSyncCheck(cudaDeviceSynchronize(), task);
+      ErrorSyncCheckTask(cudaDeviceSynchronize(), task);
     }
 
     if (task.GetQueueIdx() == MGARDX_SYNCHRONIZED_QUEUE ||
@@ -2417,112 +2465,136 @@ public:
   template <typename T>
   MGARDX_CONT static void Sum(SIZE n, SubArray<1, T, CUDA> v,
                               SubArray<1, T, CUDA> result,
-                              Array<1, Byte, CUDA> &workspace, int queue_idx) {
-    Byte *d_temp_storage =
-        workspace.hasDeviceAllocation() ? workspace.data() : nullptr;
-    size_t temp_storage_bytes =
-        workspace.hasDeviceAllocation() ? workspace.shape(0) : 0;
+                              Array<1, Byte, CUDA> &workspace,
+                              bool workspace_allocated, int queue_idx) {
+
+    Byte *d_temp_storage = workspace_allocated ? workspace.data() : nullptr;
+    size_t temp_storage_bytes = workspace_allocated ? workspace.shape(0) : 0;
     cudaStream_t stream = DeviceRuntime<CUDA>::GetQueue(queue_idx);
-    bool debug = DeviceRuntime<CUDA>::SyncAllKernelsAndCheckErrors;
     cub::DeviceReduce::Sum(d_temp_storage, temp_storage_bytes, v.data(),
-                           result.data(), n, stream, debug);
-    if (!workspace.hasDeviceAllocation()) {
-      workspace = Array<1, Byte, CUDA>({(SIZE)temp_storage_bytes});
+                           result.data(), n, stream);
+    ErrorAsyncCheck(cudaGetLastError(), "DeviceCollective<CUDA>::Sum");
+    if (DeviceRuntime<CUDA>::SyncAllKernelsAndCheckErrors) {
+      ErrorSyncCheck(cudaDeviceSynchronize(), "DeviceCollective<CUDA>::Sum");
+    }
+    if (!workspace_allocated) {
+      workspace.resize({(SIZE)temp_storage_bytes}, queue_idx);
     }
   }
 
   template <typename T>
-  MGARDX_CONT static void
-  AbsMax(SIZE n, SubArray<1, T, CUDA> v, SubArray<1, T, CUDA> result,
-         Array<1, Byte, CUDA> &workspace, int queue_idx) {
-    Byte *d_temp_storage =
-        workspace.hasDeviceAllocation() ? workspace.data() : nullptr;
-    size_t temp_storage_bytes =
-        workspace.hasDeviceAllocation() ? workspace.shape(0) : 0;
+  MGARDX_CONT static void AbsMax(SIZE n, SubArray<1, T, CUDA> v,
+                                 SubArray<1, T, CUDA> result,
+                                 Array<1, Byte, CUDA> &workspace,
+                                 bool workspace_allocated, int queue_idx) {
+
+    Byte *d_temp_storage = workspace_allocated ? workspace.data() : nullptr;
+    size_t temp_storage_bytes = workspace_allocated ? workspace.shape(0) : 0;
     AbsMaxOp absMaxOp;
     cudaStream_t stream = DeviceRuntime<CUDA>::GetQueue(queue_idx);
-    bool debug = DeviceRuntime<CUDA>::SyncAllKernelsAndCheckErrors;
     cub::DeviceReduce::Reduce(d_temp_storage, temp_storage_bytes, v.data(),
                               result.data(), n, absMaxOp, static_cast<T>(0),
-                              stream, debug);
-    if (!workspace.hasDeviceAllocation()) {
-      workspace = Array<1, Byte, CUDA>({(SIZE)temp_storage_bytes});
+                              stream);
+    ErrorAsyncCheck(cudaGetLastError(), "DeviceCollective<CUDA>::AbsMax");
+    if (DeviceRuntime<CUDA>::SyncAllKernelsAndCheckErrors) {
+      ErrorSyncCheck(cudaDeviceSynchronize(), "DeviceCollective<CUDA>::AbsMax");
+    }
+    if (!workspace_allocated) {
+      workspace.resize({(SIZE)temp_storage_bytes}, queue_idx);
     }
   }
 
   template <typename T>
-  MGARDX_CONT static void
-  SquareSum(SIZE n, SubArray<1, T, CUDA> v, SubArray<1, T, CUDA> result,
-            Array<1, Byte, CUDA> &workspace, int queue_idx) {
+  MGARDX_CONT static void SquareSum(SIZE n, SubArray<1, T, CUDA> v,
+                                    SubArray<1, T, CUDA> result,
+                                    Array<1, Byte, CUDA> &workspace,
+                                    bool workspace_allocated, int queue_idx) {
+
     SquareOp squareOp;
     cub::TransformInputIterator<T, SquareOp, T *> transformed_input_iter(
         v.data(), squareOp);
-    Byte *d_temp_storage =
-        workspace.hasDeviceAllocation() ? workspace.data() : nullptr;
-    size_t temp_storage_bytes =
-        workspace.hasDeviceAllocation() ? workspace.shape(0) : 0;
+    Byte *d_temp_storage = workspace_allocated ? workspace.data() : nullptr;
+    size_t temp_storage_bytes = workspace_allocated ? workspace.shape(0) : 0;
     cudaStream_t stream = DeviceRuntime<CUDA>::GetQueue(queue_idx);
-    bool debug = DeviceRuntime<CUDA>::SyncAllKernelsAndCheckErrors;
     cub::DeviceReduce::Sum(d_temp_storage, temp_storage_bytes,
-                           transformed_input_iter, result.data(), n, stream,
-                           debug);
-    if (!workspace.hasDeviceAllocation()) {
-      workspace = Array<1, Byte, CUDA>({(SIZE)temp_storage_bytes});
+                           transformed_input_iter, result.data(), n, stream);
+    ErrorAsyncCheck(cudaGetLastError(), "DeviceCollective<CUDA>::SquareSum");
+    if (DeviceRuntime<CUDA>::SyncAllKernelsAndCheckErrors) {
+      ErrorSyncCheck(cudaDeviceSynchronize(),
+                     "DeviceCollective<CUDA>::SquareSum");
+    }
+    if (!workspace_allocated) {
+      workspace.resize({(SIZE)temp_storage_bytes}, queue_idx);
     }
   }
 
   template <typename T>
   MGARDX_CONT static void
   ScanSumInclusive(SIZE n, SubArray<1, T, CUDA> v, SubArray<1, T, CUDA> result,
-                   Array<1, Byte, CUDA> &workspace, int queue_idx) {
-    Byte *d_temp_storage =
-        workspace.hasDeviceAllocation() ? workspace.data() : nullptr;
-    size_t temp_storage_bytes =
-        workspace.hasDeviceAllocation() ? workspace.shape(0) : 0;
+                   Array<1, Byte, CUDA> &workspace, bool workspace_allocated,
+                   int queue_idx) {
+
+    Byte *d_temp_storage = workspace_allocated ? workspace.data() : nullptr;
+    size_t temp_storage_bytes = workspace_allocated ? workspace.shape(0) : 0;
     cudaStream_t stream = DeviceRuntime<CUDA>::GetQueue(queue_idx);
-    bool debug = DeviceRuntime<CUDA>::SyncAllKernelsAndCheckErrors;
     cub::DeviceScan::InclusiveSum(d_temp_storage, temp_storage_bytes, v.data(),
-                                  result.data(), n, stream, debug);
-    if (!workspace.hasDeviceAllocation()) {
-      workspace = Array<1, Byte, CUDA>({(SIZE)temp_storage_bytes});
+                                  result.data(), n, stream);
+    ErrorAsyncCheck(cudaGetLastError(),
+                    "DeviceCollective<CUDA>::ScanSumInclusive");
+    if (DeviceRuntime<CUDA>::SyncAllKernelsAndCheckErrors) {
+      ErrorSyncCheck(cudaDeviceSynchronize(),
+                     "DeviceCollective<CUDA>::ScanSumInclusive");
+    }
+    if (!workspace_allocated) {
+      workspace.resize({(SIZE)temp_storage_bytes}, queue_idx);
     }
   }
 
   template <typename T>
   MGARDX_CONT static void
   ScanSumExclusive(SIZE n, SubArray<1, T, CUDA> v, SubArray<1, T, CUDA> result,
-                   Array<1, Byte, CUDA> &workspace, int queue_idx) {
-    Byte *d_temp_storage =
-        workspace.hasDeviceAllocation() ? workspace.data() : nullptr;
-    size_t temp_storage_bytes =
-        workspace.hasDeviceAllocation() ? workspace.shape(0) : 0;
+                   Array<1, Byte, CUDA> &workspace, bool workspace_allocated,
+                   int queue_idx) {
+
+    Byte *d_temp_storage = workspace_allocated ? workspace.data() : nullptr;
+    size_t temp_storage_bytes = workspace_allocated ? workspace.shape(0) : 0;
     cudaStream_t stream = DeviceRuntime<CUDA>::GetQueue(queue_idx);
-    bool debug = DeviceRuntime<CUDA>::SyncAllKernelsAndCheckErrors;
     cub::DeviceScan::ExclusiveSum(d_temp_storage, temp_storage_bytes, v.data(),
-                                  result.data(), n, stream, debug);
-    if (!workspace.hasDeviceAllocation()) {
-      workspace = Array<1, Byte, CUDA>({(SIZE)temp_storage_bytes});
+                                  result.data(), n, stream);
+    ErrorAsyncCheck(cudaGetLastError(),
+                    "DeviceCollective<CUDA>::ScanSumExclusive");
+    if (DeviceRuntime<CUDA>::SyncAllKernelsAndCheckErrors) {
+      ErrorSyncCheck(cudaDeviceSynchronize(),
+                     "DeviceCollective<CUDA>::ScanSumExclusive");
+    }
+    if (!workspace_allocated) {
+      workspace.resize({(SIZE)temp_storage_bytes}, queue_idx);
     }
   }
 
   template <typename T>
   MGARDX_CONT static void
   ScanSumExtended(SIZE n, SubArray<1, T, CUDA> v, SubArray<1, T, CUDA> result,
-                  Array<1, Byte, CUDA> &workspace, int queue_idx) {
-    Byte *d_temp_storage =
-        workspace.hasDeviceAllocation() ? workspace.data() : nullptr;
-    size_t temp_storage_bytes =
-        workspace.hasDeviceAllocation() ? workspace.shape(0) : 0;
+                  Array<1, Byte, CUDA> &workspace, bool workspace_allocated,
+                  int queue_idx) {
+
+    Byte *d_temp_storage = workspace_allocated ? workspace.data() : nullptr;
+    size_t temp_storage_bytes = workspace_allocated ? workspace.shape(0) : 0;
     cudaStream_t stream = DeviceRuntime<CUDA>::GetQueue(queue_idx);
-    bool debug = DeviceRuntime<CUDA>::SyncAllKernelsAndCheckErrors;
     cub::DeviceScan::InclusiveSum(d_temp_storage, temp_storage_bytes, v.data(),
-                                  result.data() + 1, n, stream, debug);
-    if (result.hasDeviceAllocation()) {
+                                  result.data() + 1, n, stream);
+    ErrorAsyncCheck(cudaGetLastError(),
+                    "DeviceCollective<CUDA>::ScanSumExtended");
+    if (DeviceRuntime<CUDA>::SyncAllKernelsAndCheckErrors) {
+      ErrorSyncCheck(cudaDeviceSynchronize(),
+                     "DeviceCollective<CUDA>::ScanSumExtended");
+    }
+    if (workspace_allocated) {
       T zero = 0;
       MemoryManager<CUDA>().Copy1D(result.data(), &zero, 1, queue_idx);
     }
-    if (!workspace.hasDeviceAllocation()) {
-      workspace = Array<1, Byte, CUDA>({(SIZE)temp_storage_bytes});
+    if (!workspace_allocated) {
+      workspace.resize({(SIZE)temp_storage_bytes}, queue_idx);
     }
   }
 
@@ -2532,19 +2604,20 @@ public:
                                     SubArray<1, KeyT, CUDA> out_keys,
                                     SubArray<1, ValueT, CUDA> out_values,
                                     Array<1, Byte, CUDA> &workspace,
-                                    int queue_idx) {
-    Byte *d_temp_storage =
-        workspace.hasDeviceAllocation() ? workspace.data() : nullptr;
-    size_t temp_storage_bytes =
-        workspace.hasDeviceAllocation() ? workspace.shape(0) : 0;
+                                    bool workspace_allocated, int queue_idx) {
+    Byte *d_temp_storage = workspace_allocated ? workspace.data() : nullptr;
+    size_t temp_storage_bytes = workspace_allocated ? workspace.shape(0) : 0;
     cudaStream_t stream = DeviceRuntime<CUDA>::GetQueue(queue_idx);
-    bool debug = DeviceRuntime<CUDA>::SyncAllKernelsAndCheckErrors;
-    cub::DeviceRadixSort::SortPairs(d_temp_storage, temp_storage_bytes,
-                                    in_keys.data(), out_keys.data(),
-                                    in_values.data(), out_values.data(), n, 0,
-                                    sizeof(KeyT) * 8, stream, debug);
-    if (!workspace.hasDeviceAllocation()) {
-      workspace = Array<1, Byte, CUDA>({(SIZE)temp_storage_bytes});
+    cub::DeviceRadixSort::SortPairs(
+        d_temp_storage, temp_storage_bytes, in_keys.data(), out_keys.data(),
+        in_values.data(), out_values.data(), n, 0, sizeof(KeyT) * 8, stream);
+    ErrorAsyncCheck(cudaGetLastError(), "DeviceCollective<CUDA>::SortByKey");
+    if (DeviceRuntime<CUDA>::SyncAllKernelsAndCheckErrors) {
+      ErrorSyncCheck(cudaDeviceSynchronize(),
+                     "DeviceCollective<CUDA>::SortByKey");
+    }
+    if (!workspace_allocated) {
+      workspace.resize({(SIZE)temp_storage_bytes}, queue_idx);
     }
   }
 
@@ -2572,6 +2645,12 @@ public:
         thrust::device_ptr<KeyT>(key.data() + key.shape(0)),
         thrust::device_ptr<ValueT>(v.data()),
         thrust::device_ptr<ValueT>(result.data()), binary_pred, binary_op);
+    ErrorAsyncCheck(cudaGetLastError(),
+                    "DeviceCollective<CUDA>::ScanOpInclusiveByKey");
+    if (DeviceRuntime<CUDA>::SyncAllKernelsAndCheckErrors) {
+      ErrorSyncCheck(cudaDeviceSynchronize(),
+                     "DeviceCollective<CUDA>::ScanOpInclusiveByKey");
+    }
   }
 };
 

@@ -542,6 +542,7 @@ MGARDX_KERL void SerialHuffmanCLCustomizedKernel(TaskType task) {
     COMPUTE_GRID(Operation3, loop1_active);
     COMPUTE_GRID(Operation4, loop1_active);
     COMPUTE_GRID(Operation5, loop1_active);
+    COMPUTE_GRID(Operation6, loop1_active);
     INHERENT_CONDITION_GRID(loop1_active, branch1_active);
     EVALUATE_CONDITION_GRID(branch_condition1, branch1_active,
                             BranchCondition1);
@@ -549,18 +550,18 @@ MGARDX_KERL void SerialHuffmanCLCustomizedKernel(TaskType task) {
       INHERENT_CONDITION_GRID(branch1_active, loop2_active);
       EVALUATE_CONDITION_GRID(loop_condition2, loop2_active, LoopCondition2);
       while (loop_condition2) {
-        COMPUTE_GRID(Operation6, loop2_active);
         COMPUTE_GRID(Operation7, loop2_active);
         COMPUTE_GRID(Operation8, loop2_active);
+        COMPUTE_GRID(Operation9, loop2_active);
         EVALUATE_CONDITION_GRID(loop_condition2, loop2_active, LoopCondition2);
       }
-      COMPUTE_GRID(Operation9, branch1_active)
-      COMPUTE_GRID(Operation10, branch1_active);
+      COMPUTE_GRID(Operation10, branch1_active)
+      COMPUTE_GRID(Operation11, branch1_active);
     }
-    COMPUTE_GRID(Operation11, loop1_active);
     COMPUTE_GRID(Operation12, loop1_active);
     COMPUTE_GRID(Operation13, loop1_active);
     COMPUTE_GRID(Operation14, loop1_active);
+    COMPUTE_GRID(Operation15, loop1_active);
     EVALUATE_CONDITION_GRID(loop_condition1, loop1_active, LoopCondition1);
   }
 
@@ -625,7 +626,7 @@ public:
       ArchitectureGeneration[d] = 1;
       SupportCooperativeGroups[d] = true;
       AvailableMemory[d] = std::numeric_limits<size_t>::max(); // unlimited
-      DeviceNames[d] = "CPU";
+      DeviceNames[d] = "CPU (Serial)";
     }
   }
 
@@ -692,6 +693,18 @@ public:
 template <> class DeviceQueues<SERIAL> {
 public:
   MGARDX_CONT
+  void Initialize() {
+    log::dbg("Calling DeviceQueues<SERIAL>::Initialize");
+    initialized = true;
+  }
+
+  MGARDX_CONT
+  void Destroy() {
+    log::dbg("Calling DeviceQueues<SERIAL>::Destroy");
+    initialized = false;
+  }
+
+  MGARDX_CONT
   DeviceQueues() {
     // do nothing
   }
@@ -710,6 +723,7 @@ public:
   ~DeviceQueues() {
     // do nothing
   }
+  int initialized = false;
 };
 
 extern int serial_dev_id;
@@ -719,6 +733,10 @@ template <> class DeviceRuntime<SERIAL> {
 public:
   MGARDX_CONT
   DeviceRuntime() {}
+
+  MGARDX_CONT static void Initialize() { queues.Initialize(); }
+
+  MGARDX_CONT static void Finalize() { queues.Destroy(); }
 
   MGARDX_CONT static int GetDeviceCount() { return DeviceSpecs.NumDevices; }
 
@@ -1319,36 +1337,42 @@ public:
   DeviceCollective(){};
 
   template <typename T>
-  MGARDX_CONT static void
-  Sum(SIZE n, SubArray<1, T, SERIAL> v, SubArray<1, T, SERIAL> result,
-      Array<1, Byte, SERIAL> &workspace, int queue_idx) {
-    if (workspace.hasDeviceAllocation()) {
+  MGARDX_CONT static void Sum(SIZE n, SubArray<1, T, SERIAL> v,
+                              SubArray<1, T, SERIAL> result,
+                              Array<1, Byte, SERIAL> &workspace,
+                              bool workspace_allocated, int queue_idx) {
+
+    if (workspace_allocated) {
       *result((IDX)0) = std::accumulate(v((IDX)0), v((IDX)n), 0);
     } else {
-      workspace = Array<1, Byte, SERIAL>({(SIZE)1});
+      workspace.resize({(SIZE)1}, queue_idx);
     }
   }
 
   template <typename T>
-  MGARDX_CONT static void
-  AbsMax(SIZE n, SubArray<1, T, SERIAL> v, SubArray<1, T, SERIAL> result,
-         Array<1, Byte, SERIAL> &workspace, int queue_idx) {
-    if (workspace.hasDeviceAllocation()) {
+  MGARDX_CONT static void AbsMax(SIZE n, SubArray<1, T, SERIAL> v,
+                                 SubArray<1, T, SERIAL> result,
+                                 Array<1, Byte, SERIAL> &workspace,
+                                 bool workspace_allocated, int queue_idx) {
+
+    if (workspace_allocated) {
       T max_result = 0;
       for (SIZE i = 0; i < n; ++i) {
         max_result = std::max((T)fabs(*v(i)), max_result);
       }
       *result((IDX)0) = max_result;
     } else {
-      workspace = Array<1, Byte, SERIAL>({(SIZE)1});
+      workspace.resize({(SIZE)1}, queue_idx);
     }
   }
 
   template <typename T>
-  MGARDX_CONT static void
-  SquareSum(SIZE n, SubArray<1, T, SERIAL> v, SubArray<1, T, SERIAL> result,
-            Array<1, Byte, SERIAL> &workspace, int queue_idx) {
-    if (workspace.hasDeviceAllocation()) {
+  MGARDX_CONT static void SquareSum(SIZE n, SubArray<1, T, SERIAL> v,
+                                    SubArray<1, T, SERIAL> result,
+                                    Array<1, Byte, SERIAL> &workspace,
+                                    bool workspace_allocated, int queue_idx) {
+
+    if (workspace_allocated) {
       T sum_result = 0;
       for (SIZE i = 0; i < n; ++i) {
         T tmp = *v(i);
@@ -1356,7 +1380,7 @@ public:
       }
       *result((IDX)0) = sum_result;
     } else {
-      workspace = Array<1, Byte, SERIAL>({(SIZE)1});
+      workspace.resize({(SIZE)1}, queue_idx);
     }
   }
 
@@ -1364,13 +1388,15 @@ public:
   MGARDX_CONT static void ScanSumInclusive(SIZE n, SubArray<1, T, SERIAL> v,
                                            SubArray<1, T, SERIAL> result,
                                            Array<1, Byte, SERIAL> &workspace,
+                                           bool workspace_allocated,
                                            int queue_idx) {
+
     // Need gcc 9 and c++17
 #if (__GNUC__ >= 9)
-    if (workspace.hasDeviceAllocation()) {
+    if (workspace_allocated) {
       std::inclusive_scan(v((IDX)0), v((IDX)n), result((IDX)0));
     } else {
-      workspace = Array<1, Byte, SERIAL>({(SIZE)1});
+      workspace.resize({(SIZE)1}, queue_idx);
     }
 #else
     log::err("Please recompile with GCC 9+ to use ScanSumInclusive<SERIAL>.");
@@ -1381,13 +1407,15 @@ public:
   MGARDX_CONT static void ScanSumExclusive(SIZE n, SubArray<1, T, SERIAL> v,
                                            SubArray<1, T, SERIAL> result,
                                            Array<1, Byte, SERIAL> &workspace,
+                                           bool workspace_allocated,
                                            int queue_idx) {
+
     // Need gcc 9 and c++17
 #if (__GNUC__ >= 9)
-    if (workspace.hasDeviceAllocation()) {
+    if (workspace_allocated) {
       std::exclusive_scan(v((IDX)0), v((IDX)n), result((IDX)0));
     } else {
-      workspace = Array<1, Byte, SERIAL>({(SIZE)1});
+      workspace.resize({(SIZE)1}, queue_idx);
     }
 #else
     log::err("Please recompile with GCC 9+ to use ScanSumExclusive<SERIAL>.");
@@ -1398,14 +1426,15 @@ public:
   MGARDX_CONT static void ScanSumExtended(SIZE n, SubArray<1, T, SERIAL> v,
                                           SubArray<1, T, SERIAL> result,
                                           Array<1, Byte, SERIAL> &workspace,
+                                          bool workspace_allocated,
                                           int queue_idx) {
     // Need gcc 9 and c++17
 #if (__GNUC__ >= 9)
-    if (workspace.hasDeviceAllocation()) {
+    if (workspace_allocated) {
       std::inclusive_scan(v((IDX)0), v((IDX)n), result((IDX)1));
       *result((IDX)0) = 0;
     } else {
-      workspace = Array<1, Byte, SERIAL>({(SIZE)1});
+      workspace.resize({(SIZE)1}, queue_idx);
     }
 #else
     log::err("Please recompile with GCC 9+ to use ScanSumExtended<SERIAL>.");
@@ -1418,8 +1447,9 @@ public:
                                     SubArray<1, KeyT, SERIAL> out_keys,
                                     SubArray<1, ValueT, SERIAL> out_values,
                                     Array<1, Byte, SERIAL> &workspace,
-                                    int queue_idx) {
-    if (workspace.hasDeviceAllocation()) {
+                                    bool workspace_allocated, int queue_idx) {
+
+    if (workspace_allocated) {
       std::vector<std::pair<KeyT, ValueT>> data(n);
       for (SIZE i = 0; i < n; ++i) {
         data[i] = std::pair<KeyT, ValueT>(*in_keys(i), *in_values(i));
@@ -1431,7 +1461,7 @@ public:
         *out_values(i) = data[i].second;
       }
     } else {
-      workspace = Array<1, Byte, SERIAL>({(SIZE)1});
+      workspace.resize({(SIZE)1}, queue_idx);
     }
   }
 };

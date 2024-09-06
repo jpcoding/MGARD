@@ -46,8 +46,8 @@ static __device__ __inline__ uint32_t __mylaneid() {
 namespace mgard_x {
 
 template <typename TaskType>
-inline void ErrorAsyncCheck(hipError_t code, TaskType &task,
-                            bool abort = true) {
+inline void ErrorAsyncCheckTask(hipError_t code, TaskType &task,
+                                bool abort = true) {
   if (code != hipSuccess) {
     log::err(std::string(hipGetErrorString(code)) + " while executing " +
              task.GetFunctorName().c_str() + " with HIP (Async-check)");
@@ -57,10 +57,31 @@ inline void ErrorAsyncCheck(hipError_t code, TaskType &task,
 }
 
 template <typename TaskType>
-inline void ErrorSyncCheck(hipError_t code, TaskType &task, bool abort = true) {
+inline void ErrorSyncCheckTask(hipError_t code, TaskType &task,
+                               bool abort = true) {
   if (code != hipSuccess) {
     log::err(std::string(hipGetErrorString(code)) + " while executing " +
              task.GetFunctorName().c_str() + " with HIP (Sync-check)");
+    if (abort)
+      exit(code);
+  }
+}
+
+inline void ErrorAsyncCheck(hipError_t code, std::string task,
+                            bool abort = true) {
+  if (code != hipSuccess) {
+    log::err(std::string(hipGetErrorString(code)) + " while executing " +
+             task.c_str() + " with HIP (Async-check)");
+    if (abort)
+      exit(code);
+  }
+}
+
+inline void ErrorSyncCheck(hipError_t code, std::string task,
+                           bool abort = true) {
+  if (code != hipSuccess) {
+    log::err(std::string(hipGetErrorString(code)) + " while executing " +
+             task.c_str() + " with HIP (Sync-check)");
     if (abort)
       exit(code);
   }
@@ -265,28 +286,30 @@ MGARDX_KERL void HipHuffmanCLCustomizedKernel(Task task) {
     task.GetFunctor().Operation4();
     SyncGrid<HIP>::Sync();
     task.GetFunctor().Operation5();
+    SyncGrid<HIP>::Sync();
+    task.GetFunctor().Operation6();
     SyncBlock<HIP>::Sync();
     if (task.GetFunctor().BranchCondition1()) {
       while (task.GetFunctor().LoopCondition2()) {
-        task.GetFunctor().Operation6();
-        SyncBlock<HIP>::Sync();
         task.GetFunctor().Operation7();
         SyncBlock<HIP>::Sync();
         task.GetFunctor().Operation8();
         SyncBlock<HIP>::Sync();
+        task.GetFunctor().Operation9();
+        SyncBlock<HIP>::Sync();
       }
-      task.GetFunctor().Operation9();
-      SyncGrid<HIP>::Sync();
       task.GetFunctor().Operation10();
       SyncGrid<HIP>::Sync();
+      task.GetFunctor().Operation11();
+      SyncGrid<HIP>::Sync();
     }
-    task.GetFunctor().Operation11();
-    SyncGrid<HIP>::Sync();
     task.GetFunctor().Operation12();
     SyncGrid<HIP>::Sync();
     task.GetFunctor().Operation13();
     SyncGrid<HIP>::Sync();
     task.GetFunctor().Operation14();
+    SyncGrid<HIP>::Sync();
+    task.GetFunctor().Operation15();
     SyncGrid<HIP>::Sync();
   }
 }
@@ -316,6 +339,7 @@ SINGLE_KERNEL(Operation11);
 SINGLE_KERNEL(Operation12);
 SINGLE_KERNEL(Operation13);
 SINGLE_KERNEL(Operation14);
+SINGLE_KERNEL(Operation15);
 
 #undef SINGLE_KERNEL
 
@@ -327,17 +351,17 @@ template <typename Task> MGARDX_KERL void HipParallelMergeKernel(Task task) {
                          blockIdx.x, threadIdx.z, threadIdx.y, threadIdx.x,
                          shared_memory);
 
-  task.GetFunctor().Operation5();
+  task.GetFunctor().Operation6();
   SyncBlock<HIP>::Sync();
   while (task.GetFunctor().LoopCondition2()) {
-    task.GetFunctor().Operation6();
-    SyncBlock<HIP>::Sync();
     task.GetFunctor().Operation7();
     SyncBlock<HIP>::Sync();
     task.GetFunctor().Operation8();
     SyncBlock<HIP>::Sync();
+    task.GetFunctor().Operation9();
+    SyncBlock<HIP>::Sync();
   }
-  task.GetFunctor().Operation9();
+  task.GetFunctor().Operation10();
 }
 
 template <typename Task>
@@ -438,7 +462,7 @@ public:
     gpuErrchk(hipSetDevice(dev_id));
     size_t free, total;
     hipMemGetInfo(&free, &total);
-    AvailableMemory[dev_id] = free;
+    AvailableMemory[dev_id] = total;
     return AvailableMemory[dev_id];
   }
 
@@ -478,45 +502,63 @@ public:
 template <> class DeviceQueues<HIP> {
 public:
   MGARDX_CONT
-  DeviceQueues() {
-    hipGetDeviceCount(&NumDevices);
-    streams = new hipStream_t *[NumDevices];
-    for (int d = 0; d < NumDevices; d++) {
-      gpuErrchk(hipSetDevice(d));
-      streams[d] = new hipStream_t[MGARDX_NUM_QUEUES];
-      for (SIZE i = 0; i < MGARDX_NUM_QUEUES; i++) {
-        gpuErrchk(hipStreamCreate(&streams[d][i]));
+  void Initialize() {
+    if (!initialized) {
+      log::dbg("Calling DeviceQueues<HIP>::Initialize");
+      hipGetDeviceCount(&NumDevices);
+      streams = new hipStream_t *[NumDevices];
+      for (int d = 0; d < NumDevices; d++) {
+        gpuErrchk(hipSetDevice(d));
+        streams[d] = new hipStream_t[MGARDX_NUM_QUEUES];
+        for (SIZE i = 0; i < MGARDX_NUM_QUEUES; i++) {
+          gpuErrchk(hipStreamCreate(&streams[d][i]));
+        }
       }
+      initialized = true;
     }
   }
 
+  MGARDX_CONT
+  void Destroy() {
+    if (initialized) {
+      log::dbg("Calling DeviceQueues<HIP>::Destroy");
+      for (int d = 0; d < NumDevices; d++) {
+        gpuErrchk(hipSetDevice(d));
+        for (int i = 0; i < MGARDX_NUM_QUEUES; i++) {
+          gpuErrchk(hipStreamDestroy(streams[d][i]));
+        }
+        delete[] streams[d];
+      }
+      delete[] streams;
+      streams = nullptr;
+      initialized = false;
+    }
+  }
+
+  MGARDX_CONT
+  DeviceQueues() { Initialize(); }
+
   MGARDX_CONT hipStream_t GetQueue(int dev_id, SIZE queue_id) {
+    Initialize();
     return streams[dev_id][queue_id];
   }
 
   MGARDX_CONT void SyncQueue(int dev_id, SIZE queue_id) {
+    Initialize();
     hipStreamSynchronize(streams[dev_id][queue_id]);
   }
 
   MGARDX_CONT void SyncAllQueues(int dev_id) {
+    Initialize();
     for (SIZE i = 0; i < MGARDX_NUM_QUEUES; i++) {
       gpuErrchk(hipStreamSynchronize(streams[dev_id][i]));
     }
   }
 
   MGARDX_CONT
-  ~DeviceQueues() {
-    for (int d = 0; d < NumDevices; d++) {
-      gpuErrchk(hipSetDevice(d));
-      for (int i = 0; i < MGARDX_NUM_QUEUES; i++) {
-        gpuErrchk(hipStreamDestroy(streams[d][i]));
-      }
-      delete[] streams[d];
-    }
-    delete[] streams;
-    streams = nullptr;
-  }
+  ~DeviceQueues() {}
 
+  bool initialized = false;
   int NumDevices;
   hipStream_t **streams = nullptr;
 };
@@ -528,6 +570,10 @@ template <> class DeviceRuntime<HIP> {
 public:
   MGARDX_CONT
   DeviceRuntime() {}
+
+  MGARDX_CONT static void Initialize() { queues.Initialize(); }
+
+  MGARDX_CONT static void Finalize() { queues.Destroy(); }
 
   MGARDX_CONT static int GetDeviceCount() { return DeviceSpecs.NumDevices; }
 
@@ -1841,6 +1887,11 @@ template <typename Task> void HipHuffmanCLCustomizedNoCGKernel(Task task) {
                                stream>>>(task);
     DeviceRuntime<HIP>::SyncQueue(task.GetQueueIdx());
 
+    // std::cout << "calling Single_Operation4_Kernel\n";
+    Single_Operation5_Kernel<<<blockPerGrid, threadsPerBlock, sm_size,
+                               stream>>>(task);
+    DeviceRuntime<HIP>::SyncQueue(task.GetQueueIdx());
+
     // std::cout << "calling BranchCondition1\n";
     if (task.GetFunctor().BranchCondition1()) {
       DeviceRuntime<HIP>::SyncQueue(task.GetQueueIdx());
@@ -1851,28 +1902,28 @@ template <typename Task> void HipHuffmanCLCustomizedNoCGKernel(Task task) {
       DeviceRuntime<HIP>::SyncQueue(task.GetQueueIdx());
 
       // std::cout << "calling Single_Operation10_Kernel\n";
-      Single_Operation10_Kernel<<<blockPerGrid, threadsPerBlock, sm_size,
+      Single_Operation11_Kernel<<<blockPerGrid, threadsPerBlock, sm_size,
                                   stream>>>(task);
       DeviceRuntime<HIP>::SyncQueue(task.GetQueueIdx());
     }
 
     // std::cout << "calling Single_Operation11_Kernel\n";
-    Single_Operation11_Kernel<<<blockPerGrid, threadsPerBlock, sm_size,
-                                stream>>>(task);
-    DeviceRuntime<HIP>::SyncQueue(task.GetQueueIdx());
-
-    // std::cout << "calling Single_Operation12_Kernel\n";
     Single_Operation12_Kernel<<<blockPerGrid, threadsPerBlock, sm_size,
                                 stream>>>(task);
     DeviceRuntime<HIP>::SyncQueue(task.GetQueueIdx());
 
-    // std::cout << "calling Single_Operation13_Kernel\n";
+    // std::cout << "calling Single_Operation12_Kernel\n";
     Single_Operation13_Kernel<<<blockPerGrid, threadsPerBlock, sm_size,
                                 stream>>>(task);
     DeviceRuntime<HIP>::SyncQueue(task.GetQueueIdx());
 
-    // std::cout << "calling Single_Operation14_Kernel\n";
+    // std::cout << "calling Single_Operation13_Kernel\n";
     Single_Operation14_Kernel<<<blockPerGrid, threadsPerBlock, sm_size,
+                                stream>>>(task);
+    DeviceRuntime<HIP>::SyncQueue(task.GetQueueIdx());
+
+    // std::cout << "calling Single_Operation14_Kernel\n";
+    Single_Operation15_Kernel<<<blockPerGrid, threadsPerBlock, sm_size,
                                 stream>>>(task);
     DeviceRuntime<HIP>::SyncQueue(task.GetQueueIdx());
   }
@@ -2028,10 +2079,10 @@ public:
         HipHuffmanCWCustomizedNoCGKernel(task);
       }
     }
-    ErrorAsyncCheck(hipGetLastError(), task);
+    ErrorAsyncCheckTask(hipGetLastError(), task);
     gpuErrchk(hipGetLastError());
     if (DeviceRuntime<HIP>::SyncAllKernelsAndCheckErrors) {
-      ErrorSyncCheck(hipDeviceSynchronize(), task);
+      ErrorSyncCheckTask(hipDeviceSynchronize(), task);
     }
 
     if (task.GetQueueIdx() == MGARDX_SYNCHRONIZED_QUEUE ||
@@ -2137,10 +2188,10 @@ public:
         HipHuffmanCWCustomizedNoCGKernel(task);
       }
     }
-    ErrorAsyncCheck(hipGetLastError(), task);
+    ErrorAsyncCheckTask(hipGetLastError(), task);
     gpuErrchk(hipGetLastError());
     if (DeviceRuntime<HIP>::SyncAllKernelsAndCheckErrors) {
-      ErrorSyncCheck(hipDeviceSynchronize(), task);
+      ErrorSyncCheckTask(hipDeviceSynchronize(), task);
     }
 
     if (task.GetQueueIdx() == MGARDX_SYNCHRONIZED_QUEUE ||
@@ -2251,114 +2302,136 @@ public:
   DeviceCollective(){};
 
   template <typename T>
-  MGARDX_CONT static void Sum(SIZE n, SubArray<1, T, HIP> v,
-                              SubArray<1, T, HIP> result,
-                              Array<1, Byte, HIP> &workspace, int queue_idx) {
-    Byte *d_temp_storage =
-        workspace.hasDeviceAllocation() ? workspace.data() : nullptr;
-    size_t temp_storage_bytes =
-        workspace.hasDeviceAllocation() ? workspace.shape(0) : 0;
+  MGARDX_CONT static void
+  Sum(SIZE n, SubArray<1, T, HIP> v, SubArray<1, T, HIP> result,
+      Array<1, Byte, HIP> &workspace, bool workspace_allocated, int queue_idx) {
+
+    Byte *d_temp_storage = workspace_allocated ? workspace.data() : nullptr;
+    size_t temp_storage_bytes = workspace_allocated ? workspace.shape(0) : 0;
     hipStream_t stream = DeviceRuntime<HIP>::GetQueue(queue_idx);
-    bool debug = DeviceRuntime<HIP>::SyncAllKernelsAndCheckErrors;
     hipcub::DeviceReduce::Sum(d_temp_storage, temp_storage_bytes, v.data(),
-                              result.data(), n, stream, debug);
-    if (!workspace.hasDeviceAllocation()) {
-      workspace = Array<1, Byte, HIP>({(SIZE)temp_storage_bytes});
+                              result.data(), n, stream);
+    ErrorAsyncCheck(hipGetLastError(), "DeviceCollective<HIP>::Sum");
+    if (DeviceRuntime<HIP>::SyncAllKernelsAndCheckErrors) {
+      ErrorSyncCheck(hipDeviceSynchronize(), "DeviceCollective<HIP>::Sum");
+    }
+    if (!workspace_allocated) {
+      workspace.resize({(SIZE)temp_storage_bytes}, queue_idx);
     }
   }
 
   template <typename T>
-  MGARDX_CONT static void
-  AbsMax(SIZE n, SubArray<1, T, HIP> v, SubArray<1, T, HIP> result,
-         Array<1, Byte, HIP> &workspace, int queue_idx) {
-    Byte *d_temp_storage =
-        workspace.hasDeviceAllocation() ? workspace.data() : nullptr;
-    size_t temp_storage_bytes =
-        workspace.hasDeviceAllocation() ? workspace.shape(0) : 0;
+  MGARDX_CONT static void AbsMax(SIZE n, SubArray<1, T, HIP> v,
+                                 SubArray<1, T, HIP> result,
+                                 Array<1, Byte, HIP> &workspace,
+                                 bool workspace_allocated, int queue_idx) {
+
+    Byte *d_temp_storage = workspace_allocated ? workspace.data() : nullptr;
+    size_t temp_storage_bytes = workspace_allocated ? workspace.shape(0) : 0;
     AbsMaxOp absMaxOp;
     hipStream_t stream = DeviceRuntime<HIP>::GetQueue(queue_idx);
-    bool debug = DeviceRuntime<HIP>::SyncAllKernelsAndCheckErrors;
     hipcub::DeviceReduce::Reduce(d_temp_storage, temp_storage_bytes, v.data(),
-                                 result.data(), n, absMaxOp, 0, stream, debug);
-    if (!workspace.hasDeviceAllocation()) {
-      workspace = Array<1, Byte, HIP>({(SIZE)temp_storage_bytes});
+                                 result.data(), n, absMaxOp, 0, stream);
+    ErrorAsyncCheck(hipGetLastError(), "DeviceCollective<HIP>::AbsMax");
+    if (DeviceRuntime<HIP>::SyncAllKernelsAndCheckErrors) {
+      ErrorSyncCheck(hipDeviceSynchronize(), "DeviceCollective<HIP>::AbsMax");
+    }
+    if (!workspace_allocated) {
+      workspace.resize({(SIZE)temp_storage_bytes}, queue_idx);
     }
   }
 
   template <typename T>
-  MGARDX_CONT static void
-  SquareSum(SIZE n, SubArray<1, T, HIP> v, SubArray<1, T, HIP> result,
-            Array<1, Byte, HIP> &workspace, int queue_idx) {
+  MGARDX_CONT static void SquareSum(SIZE n, SubArray<1, T, HIP> v,
+                                    SubArray<1, T, HIP> result,
+                                    Array<1, Byte, HIP> &workspace,
+                                    bool workspace_allocated, int queue_idx) {
+
     SquareOp squareOp;
     hipcub::TransformInputIterator<T, SquareOp, T *> transformed_input_iter(
         v.data(), squareOp);
-    Byte *d_temp_storage =
-        workspace.hasDeviceAllocation() ? workspace.data() : nullptr;
-    size_t temp_storage_bytes =
-        workspace.hasDeviceAllocation() ? workspace.shape(0) : 0;
+    Byte *d_temp_storage = workspace_allocated ? workspace.data() : nullptr;
+    size_t temp_storage_bytes = workspace_allocated ? workspace.shape(0) : 0;
     hipStream_t stream = DeviceRuntime<HIP>::GetQueue(queue_idx);
-    bool debug = DeviceRuntime<HIP>::SyncAllKernelsAndCheckErrors;
     hipcub::DeviceReduce::Sum(d_temp_storage, temp_storage_bytes,
-                              transformed_input_iter, result.data(), n, stream,
-                              debug);
-    if (!workspace.hasDeviceAllocation()) {
-      workspace = Array<1, Byte, HIP>({(SIZE)temp_storage_bytes});
+                              transformed_input_iter, result.data(), n, stream);
+    ErrorAsyncCheck(hipGetLastError(), "DeviceCollective<HIP>::SquareSum");
+    if (DeviceRuntime<HIP>::SyncAllKernelsAndCheckErrors) {
+      ErrorSyncCheck(hipDeviceSynchronize(),
+                     "DeviceCollective<HIP>::SquareSum");
+    }
+    if (!workspace_allocated) {
+      workspace.resize({(SIZE)temp_storage_bytes}, queue_idx);
     }
   }
 
   template <typename T>
   MGARDX_CONT static void
   ScanSumInclusive(SIZE n, SubArray<1, T, HIP> v, SubArray<1, T, HIP> result,
-                   Array<1, Byte, HIP> &workspace, int queue_idx) {
-    Byte *d_temp_storage =
-        workspace.hasDeviceAllocation() ? workspace.data() : nullptr;
-    size_t temp_storage_bytes =
-        workspace.hasDeviceAllocation() ? workspace.shape(0) : 0;
+                   Array<1, Byte, HIP> &workspace, bool workspace_allocated,
+                   int queue_idx) {
+
+    Byte *d_temp_storage = workspace_allocated ? workspace.data() : nullptr;
+    size_t temp_storage_bytes = workspace_allocated ? workspace.shape(0) : 0;
     hipStream_t stream = DeviceRuntime<HIP>::GetQueue(queue_idx);
-    bool debug = DeviceRuntime<HIP>::SyncAllKernelsAndCheckErrors;
     hipcub::DeviceScan::InclusiveSum(d_temp_storage, temp_storage_bytes,
-                                     v.data(), result.data(), n, stream, debug);
-    if (!workspace.hasDeviceAllocation()) {
-      workspace = Array<1, Byte, HIP>({(SIZE)temp_storage_bytes});
+                                     v.data(), result.data(), n, stream);
+    ErrorAsyncCheck(hipGetLastError(),
+                    "DeviceCollective<HIP>::ScanSumInclusive");
+    if (DeviceRuntime<HIP>::SyncAllKernelsAndCheckErrors) {
+      ErrorSyncCheck(hipDeviceSynchronize(),
+                     "DeviceCollective<HIP>::ScanSumInclusive");
+    }
+    if (!workspace_allocated) {
+      workspace.resize({(SIZE)temp_storage_bytes}, queue_idx);
     }
   }
 
   template <typename T>
   MGARDX_CONT static void
   ScanSumExclusive(SIZE n, SubArray<1, T, HIP> v, SubArray<1, T, HIP> result,
-                   Array<1, Byte, HIP> &workspace, int queue_idx) {
-    Byte *d_temp_storage =
-        workspace.hasDeviceAllocation() ? workspace.data() : nullptr;
-    size_t temp_storage_bytes =
-        workspace.hasDeviceAllocation() ? workspace.shape(0) : 0;
+                   Array<1, Byte, HIP> &workspace, bool workspace_allocated,
+                   int queue_idx) {
+
+    Byte *d_temp_storage = workspace_allocated ? workspace.data() : nullptr;
+    size_t temp_storage_bytes = workspace_allocated ? workspace.shape(0) : 0;
     hipStream_t stream = DeviceRuntime<HIP>::GetQueue(queue_idx);
-    bool debug = DeviceRuntime<HIP>::SyncAllKernelsAndCheckErrors;
     hipcub::DeviceScan::ExclusiveSum(d_temp_storage, temp_storage_bytes,
-                                     v.data(), result.data(), n, stream, debug);
-    if (!workspace.hasDeviceAllocation()) {
-      workspace = Array<1, Byte, HIP>({(SIZE)temp_storage_bytes});
+                                     v.data(), result.data(), n, stream);
+    ErrorAsyncCheck(hipGetLastError(),
+                    "DeviceCollective<HIP>::ScanSumExclusive");
+    if (DeviceRuntime<HIP>::SyncAllKernelsAndCheckErrors) {
+      ErrorSyncCheck(hipDeviceSynchronize(),
+                     "DeviceCollective<HIP>::ScanSumExclusive");
+    }
+    if (!workspace_allocated) {
+      workspace.resize({(SIZE)temp_storage_bytes}, queue_idx);
     }
   }
 
   template <typename T>
   MGARDX_CONT static void
   ScanSumExtended(SIZE n, SubArray<1, T, HIP> v, SubArray<1, T, HIP> result,
-                  Array<1, Byte, HIP> &workspace, int queue_idx) {
-    Byte *d_temp_storage =
-        workspace.hasDeviceAllocation() ? workspace.data() : nullptr;
-    size_t temp_storage_bytes =
-        workspace.hasDeviceAllocation() ? workspace.shape(0) : 0;
+                  Array<1, Byte, HIP> &workspace, bool workspace_allocated,
+                  int queue_idx) {
+
+    Byte *d_temp_storage = workspace_allocated ? workspace.data() : nullptr;
+    size_t temp_storage_bytes = workspace_allocated ? workspace.shape(0) : 0;
     hipStream_t stream = DeviceRuntime<HIP>::GetQueue(queue_idx);
-    bool debug = DeviceRuntime<HIP>::SyncAllKernelsAndCheckErrors;
     hipcub::DeviceScan::InclusiveSum(d_temp_storage, temp_storage_bytes,
-                                     v.data(), result.data() + 1, n, stream,
-                                     debug);
-    if (result.hasDeviceAllocation()) {
+                                     v.data(), result.data() + 1, n, stream);
+    ErrorAsyncCheck(hipGetLastError(),
+                    "DeviceCollective<HIP>::ScanSumExtended");
+    if (DeviceRuntime<HIP>::SyncAllKernelsAndCheckErrors) {
+      ErrorSyncCheck(hipDeviceSynchronize(),
+                     "DeviceCollective<HIP>::ScanSumExtended");
+    }
+    if (workspace_allocated) {
       T zero = 0;
       MemoryManager<HIP>().Copy1D(result.data(), &zero, 1, queue_idx);
     }
-    if (!workspace.hasDeviceAllocation()) {
-      workspace = Array<1, Byte, HIP>({(SIZE)temp_storage_bytes});
+    if (!workspace_allocated) {
+      workspace.resize({(SIZE)temp_storage_bytes}, queue_idx);
     }
   }
 
@@ -2367,19 +2440,21 @@ public:
   SortByKey(SIZE n, SubArray<1, KeyT, HIP> in_keys,
             SubArray<1, ValueT, HIP> in_values, SubArray<1, KeyT, HIP> out_keys,
             SubArray<1, ValueT, HIP> out_values, Array<1, Byte, HIP> &workspace,
-            int queue_idx) {
-    Byte *d_temp_storage =
-        workspace.hasDeviceAllocation() ? workspace.data() : nullptr;
-    size_t temp_storage_bytes =
-        workspace.hasDeviceAllocation() ? workspace.shape(0) : 0;
+            bool workspace_allocated, int queue_idx) {
+
+    Byte *d_temp_storage = workspace_allocated ? workspace.data() : nullptr;
+    size_t temp_storage_bytes = workspace_allocated ? workspace.shape(0) : 0;
     hipStream_t stream = DeviceRuntime<HIP>::GetQueue(queue_idx);
-    bool debug = DeviceRuntime<HIP>::SyncAllKernelsAndCheckErrors;
-    hipcub::DeviceRadixSort::SortPairs(d_temp_storage, temp_storage_bytes,
-                                       in_keys.data(), out_keys.data(),
-                                       in_values.data(), out_values.data(), n,
-                                       0, sizeof(KeyT) * 8, stream, debug);
-    if (!workspace.hasDeviceAllocation()) {
-      workspace = Array<1, Byte, HIP>({(SIZE)temp_storage_bytes});
+    hipcub::DeviceRadixSort::SortPairs(
+        d_temp_storage, temp_storage_bytes, in_keys.data(), out_keys.data(),
+        in_values.data(), out_values.data(), n, 0, sizeof(KeyT) * 8, stream);
+    ErrorAsyncCheck(hipGetLastError(), "DeviceCollective<HIP>::SortByKey");
+    if (DeviceRuntime<HIP>::SyncAllKernelsAndCheckErrors) {
+      ErrorSyncCheck(hipDeviceSynchronize(),
+                     "DeviceCollective<HIP>::SortByKey");
+    }
+    if (!workspace_allocated) {
+      workspace.resize({(SIZE)temp_storage_bytes}, queue_idx);
     }
   }
 };

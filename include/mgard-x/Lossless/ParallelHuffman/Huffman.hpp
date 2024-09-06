@@ -31,11 +31,24 @@ namespace mgard_x {
 template <typename Q, typename S, typename H, typename DeviceType>
 class Huffman : public LosslessCompressorInterface<S, DeviceType> {
 public:
+  Huffman() : initialized(false) {}
+
   Huffman(SIZE max_size, int dict_size, int chunk_size,
-          double estimated_outlier_ratio = 1.0)
-      : max_size(max_size), dict_size(dict_size), chunk_size(chunk_size) {
+          double estimated_outlier_ratio)
+      : initialized(true), max_size(max_size), dict_size(dict_size),
+        chunk_size(chunk_size) {
     workspace = HuffmanWorkspace<Q, S, H, DeviceType>(
         max_size, dict_size, chunk_size, estimated_outlier_ratio);
+  }
+
+  void Resize(SIZE max_size, int dict_size, int chunk_size,
+              double estimated_outlier_ratio, int queue_idx) {
+    this->initialized = true;
+    this->max_size = max_size;
+    this->dict_size = dict_size;
+    this->chunk_size = chunk_size;
+    workspace.resize(max_size, dict_size, chunk_size, estimated_outlier_ratio,
+                     queue_idx);
   }
 
   static size_t EstimateMemoryFootprint(SIZE primary_count, SIZE dict_size,
@@ -50,8 +63,10 @@ public:
                        int queue_idx) {
 
     Timer timer;
-    if (log::level & log::TIME)
+    if (log::level & log::TIME) {
+      DeviceRuntime<DeviceType>::SyncQueue(queue_idx);
       timer.start();
+    }
 
     SubArray primary_subarray(primary_data);
     workspace.reset(queue_idx);
@@ -147,8 +162,8 @@ public:
     advance_with_align<size_t>(byte_offset, 1);
     advance_with_align<H>(byte_offset, ddata_size);
     // outliter
-    advance_with_align<LENGTH>(byte_offset, 1);
-    advance_with_align<LENGTH>(byte_offset, workspace.outlier_count);
+    advance_with_align<ATOMIC_IDX>(byte_offset, 1);
+    advance_with_align<ATOMIC_IDX>(byte_offset, workspace.outlier_count);
     advance_with_align<S>(byte_offset, workspace.outlier_count);
 
     compressed_data.resize({(SIZE)(byte_offset)});
@@ -156,20 +171,23 @@ public:
 
     byte_offset = 0;
     SerializeArray<size_t>(compressed_data_subarray, &primary_count, 1,
-                           byte_offset);
-    SerializeArray<int>(compressed_data_subarray, &dict_size, 1, byte_offset);
-    SerializeArray<int>(compressed_data_subarray, &chunk_size, 1, byte_offset);
+                           byte_offset, queue_idx);
+    SerializeArray<int>(compressed_data_subarray, &dict_size, 1, byte_offset,
+                        queue_idx);
+    SerializeArray<int>(compressed_data_subarray, &chunk_size, 1, byte_offset,
+                        queue_idx);
     SerializeArray<size_t>(compressed_data_subarray, &huffmeta_size, 1,
-                           byte_offset);
+                           byte_offset, queue_idx);
     SerializeArray<size_t>(compressed_data_subarray, dH_bit_meta, huffmeta_size,
-                           byte_offset);
+                           byte_offset, queue_idx);
     SerializeArray<size_t>(compressed_data_subarray, &decodebook_size, 1,
-                           byte_offset);
-    SerializeArray<uint8_t>(
-        compressed_data_subarray, workspace.decodebook_subarray.data(),
-        (sizeof(H) * (2 * type_bw) + sizeof(Q) * dict_size), byte_offset);
+                           byte_offset, queue_idx);
+    SerializeArray<uint8_t>(compressed_data_subarray,
+                            workspace.decodebook_subarray.data(),
+                            (sizeof(H) * (2 * type_bw) + sizeof(Q) * dict_size),
+                            byte_offset, queue_idx);
     SerializeArray<size_t>(compressed_data_subarray, &ddata_size, 1,
-                           byte_offset);
+                           byte_offset, queue_idx);
 
     align_byte_offset<H>(byte_offset);
 
@@ -191,14 +209,15 @@ public:
     advance_with_align<H>(byte_offset, ddata_size);
 
     // outlier
-    SerializeArray<LENGTH>(compressed_data_subarray, &workspace.outlier_count,
-                           1, byte_offset);
-    SerializeArray<LENGTH>(compressed_data_subarray,
-                           workspace.outlier_idx_subarray.data(),
-                           workspace.outlier_count, byte_offset);
+    SerializeArray<ATOMIC_IDX>(compressed_data_subarray,
+                               &workspace.outlier_count, 1, byte_offset,
+                               queue_idx);
+    SerializeArray<ATOMIC_IDX>(compressed_data_subarray,
+                               workspace.outlier_idx_subarray.data(),
+                               workspace.outlier_count, byte_offset, queue_idx);
     SerializeArray<S>(compressed_data_subarray,
                       workspace.outlier_subarray.data(),
-                      workspace.outlier_count, byte_offset);
+                      workspace.outlier_count, byte_offset, queue_idx);
 
     DeviceRuntime<DeviceType>::SyncQueue(queue_idx);
 
@@ -209,8 +228,8 @@ public:
     log::info("Huffman compress ratio (primary): " +
               std::to_string(primary_count * sizeof(Q)) + "/" +
               std::to_string(ddata_size * sizeof(H)) + " (" +
-              std::to_string((double)primary_count * sizeof(Q) / ddata_size *
-                             sizeof(H)) +
+              std::to_string((double)primary_count * sizeof(Q) /
+                             (ddata_size * sizeof(H))) +
               ")");
     log::info(
         "Huffman compress ratio: " + std::to_string(primary_count * sizeof(Q)) +
@@ -220,8 +239,13 @@ public:
         ")");
 
     if (log::level & log::TIME) {
+      DeviceRuntime<DeviceType>::SyncQueue(queue_idx);
       timer.end();
       timer.print("Huffman compress");
+      log::info("Huffman compression throughput: " +
+                std::to_string((double)primary_count * sizeof(Q) / timer.get() /
+                               1e9) +
+                " GB/s");
       timer.clear();
     }
   }
@@ -229,8 +253,10 @@ public:
   void DecompressPrimary(Array<1, Byte, DeviceType> &compressed_data,
                          Array<1, Q, DeviceType> &primary_data, int queue_idx) {
     Timer timer;
-    if (log::level & log::TIME)
+    if (log::level & log::TIME) {
+      DeviceRuntime<DeviceType>::SyncQueue(queue_idx);
       timer.start();
+    }
     SubArray compressed_subarray(compressed_data);
     size_t primary_count;
     int dict_size;
@@ -240,8 +266,8 @@ public:
     size_t decodebook_size;
     uint8_t *decodebook;
     size_t ddata_size;
-    // LENGTH outlier_count;
-    LENGTH *outlier_idx;
+    // ATOMIC_IDX outlier_count;
+    ATOMIC_IDX *outlier_idx;
     S *outlier;
 
     size_t *primary_count_ptr = &primary_count;
@@ -250,38 +276,40 @@ public:
     size_t *huffmeta_size_ptr = &huffmeta_size;
     size_t *decodebook_size_ptr = &decodebook_size;
     size_t *ddata_size_ptr = &ddata_size;
-    LENGTH *outlier_count_ptr = &workspace.outlier_count;
+    ATOMIC_IDX *outlier_count_ptr = &workspace.outlier_count;
 
     H *ddata;
 
     SIZE byte_offset = 0;
     DeserializeArray<size_t>(compressed_subarray, primary_count_ptr, 1,
-                             byte_offset, false);
+                             byte_offset, false, queue_idx);
     DeserializeArray<int>(compressed_subarray, dict_size_ptr, 1, byte_offset,
-                          false);
+                          false, queue_idx);
     DeserializeArray<int>(compressed_subarray, chunk_size_ptr, 1, byte_offset,
-                          false);
+                          false, queue_idx);
     DeserializeArray<size_t>(compressed_subarray, huffmeta_size_ptr, 1,
-                             byte_offset, false);
+                             byte_offset, false, queue_idx);
     DeserializeArray<size_t>(compressed_subarray, huffmeta, huffmeta_size,
-                             byte_offset, true);
+                             byte_offset, true, queue_idx);
     DeserializeArray<size_t>(compressed_subarray, decodebook_size_ptr, 1,
-                             byte_offset, false);
+                             byte_offset, false, queue_idx);
     DeserializeArray<uint8_t>(compressed_subarray, decodebook, decodebook_size,
-                              byte_offset, true);
+                              byte_offset, true, queue_idx);
     DeserializeArray<size_t>(compressed_subarray, ddata_size_ptr, 1,
-                             byte_offset, false);
+                             byte_offset, false, queue_idx);
     DeserializeArray<H>(compressed_subarray, ddata, ddata_size, byte_offset,
-                        true);
+                        true, queue_idx);
 
     // outlier
-    DeserializeArray<LENGTH>(compressed_subarray, outlier_count_ptr, 1,
-                             byte_offset, false);
-    DeserializeArray<LENGTH>(compressed_subarray, outlier_idx,
-                             workspace.outlier_count, byte_offset, true);
+    DeserializeArray<ATOMIC_IDX>(compressed_subarray, outlier_count_ptr, 1,
+                                 byte_offset, false, queue_idx);
+    DeviceRuntime<DeviceType>::SyncQueue(queue_idx);
+    DeserializeArray<ATOMIC_IDX>(compressed_subarray, outlier_idx,
+                                 workspace.outlier_count, byte_offset, true,
+                                 queue_idx);
     DeserializeArray<S>(compressed_subarray, outlier, workspace.outlier_count,
-                        byte_offset, true);
-    workspace.outlier_idx_subarray = SubArray<1, LENGTH, DeviceType>(
+                        byte_offset, true, queue_idx);
+    workspace.outlier_idx_subarray = SubArray<1, ATOMIC_IDX, DeviceType>(
         {(SIZE)workspace.outlier_count}, outlier_idx);
     workspace.outlier_subarray =
         SubArray<1, S, DeviceType>({(SIZE)workspace.outlier_count}, outlier);
@@ -300,8 +328,13 @@ public:
         chunk_size, nchunk, decodebook_subarray, decodebook_size, queue_idx);
     DeviceRuntime<DeviceType>::SyncQueue(queue_idx);
     if (log::level & log::TIME) {
+      DeviceRuntime<DeviceType>::SyncQueue(queue_idx);
       timer.end();
       timer.print("Huffman decompress");
+      log::info("Huffman decompression throughput: " +
+                std::to_string((double)primary_count * sizeof(Q) / timer.get() /
+                               1e9) +
+                " GB/s");
       timer.clear();
     }
   }
@@ -310,8 +343,10 @@ public:
                 Array<1, Byte, DeviceType> &compressed_data, int queue_idx) {
 
     Timer timer;
-    if (log::level & log::TIME)
+    if (log::level & log::TIME) {
+      DeviceRuntime<DeviceType>::SyncQueue(queue_idx);
       timer.start();
+    }
 
     DeviceLauncher<DeviceType>::Execute(
         DictionaryShiftKernel<S, MGARDX_SHIFT_DICT, DeviceType>(
@@ -340,6 +375,7 @@ public:
     }
 
     if (log::level & log::TIME) {
+      DeviceRuntime<DeviceType>::SyncQueue(queue_idx);
       timer.end();
       timer.print("Huffman outlier");
       timer.clear();
@@ -361,8 +397,10 @@ public:
     DecompressPrimary(compressed_data, primary_data, queue_idx);
 
     Timer timer;
-    if (log::level & log::TIME)
+    if (log::level & log::TIME) {
+      DeviceRuntime<DeviceType>::SyncQueue(queue_idx);
       timer.start();
+    }
 
     DeviceLauncher<DeviceType>::Execute(
         OutlierSeparatorKernel<S, MGARDX_RESTORE_OUTLIER, DeviceType>(
@@ -377,12 +415,14 @@ public:
     DeviceRuntime<DeviceType>::SyncQueue(queue_idx);
 
     if (log::level & log::TIME) {
+      DeviceRuntime<DeviceType>::SyncQueue(queue_idx);
       timer.end();
       timer.print("Huffman outlier");
       timer.clear();
     }
   }
 
+  bool initialized;
   SIZE max_size;
   int dict_size;
   int chunk_size;

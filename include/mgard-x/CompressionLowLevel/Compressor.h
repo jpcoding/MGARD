@@ -27,6 +27,8 @@ namespace mgard_x {
 
 template <DIM D, typename T, typename DeviceType>
 class Compressor : public LossyCompressorInterface<D, T, DeviceType> {
+public:
+  using HierarchyType = Hierarchy<D, T, DeviceType>;
   using DataRefactorType = data_refactoring::DataRefactor<D, T, DeviceType>;
   using LosslessCompressorType =
       ComposedLosslessCompressor<QUANTIZED_UNSIGNED_INT, HUFFMAN_CODE,
@@ -34,7 +36,12 @@ class Compressor : public LossyCompressorInterface<D, T, DeviceType> {
   using LinearQuantizerType = LinearQuantizer<D, T, QUANTIZED_INT, DeviceType>;
 
 public:
-  Compressor(Hierarchy<D, T, DeviceType> hierarchy, Config config);
+  Compressor();
+
+  Compressor(Hierarchy<D, T, DeviceType> &hierarchy, Config config);
+
+  void Adapt(Hierarchy<D, T, DeviceType> &hierarchy, Config config,
+             int queue_idx);
 
   static size_t EstimateMemoryFootprint(std::vector<SIZE> shape, Config config);
 
@@ -66,7 +73,8 @@ public:
                   enum error_bound_type ebtype, T tol, T s, T &norm,
                   Array<D, T, DeviceType> &decompressed_data, int queue_idx);
 
-  Hierarchy<D, T, DeviceType> hierarchy;
+  bool initialized;
+  Hierarchy<D, T, DeviceType> *hierarchy;
   Config config;
   Array<1, T, DeviceType> norm_tmp_array;
   Array<1, T, DeviceType> norm_array;

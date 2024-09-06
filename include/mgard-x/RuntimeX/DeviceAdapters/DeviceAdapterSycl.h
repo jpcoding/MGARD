@@ -308,43 +308,61 @@ public:
 template <> class DeviceQueues<SYCL> {
 public:
   MGARDX_CONT
-  DeviceQueues() {
-    sycl::default_selector d_selector;
-    sycl::platform d_platform(d_selector);
-    std::vector<sycl::device> d_devices = d_platform.get_devices();
-    NumDevices = d_devices.size();
-    queues = new sycl::queue *[NumDevices];
-    for (SIZE d = 0; d < NumDevices; d++) {
-      queues[d] = new sycl::queue[MGARDX_NUM_QUEUES];
-      for (SIZE i = 0; i < MGARDX_NUM_QUEUES; i++) {
-        queues[d][i] = sycl::queue(d_devices[d], exception_handler);
+  void Initialize() {
+    if (!initialized) {
+      log::dbg("Calling DeviceQueues<SYCL>::Initialize");
+      sycl::default_selector d_selector;
+      sycl::platform d_platform(d_selector);
+      std::vector<sycl::device> d_devices = d_platform.get_devices();
+      NumDevices = d_devices.size();
+      queues = new sycl::queue *[NumDevices];
+      for (SIZE d = 0; d < NumDevices; d++) {
+        queues[d] = new sycl::queue[MGARDX_NUM_QUEUES];
+        for (SIZE i = 0; i < MGARDX_NUM_QUEUES; i++) {
+          queues[d][i] = sycl::queue(d_devices[d], exception_handler);
+        }
       }
+      initialized = true;
     }
   }
 
+  MGARDX_CONT
+  void Destroy() {
+    if (initialized) {
+      log::dbg("Calling DeviceQueues<SYCL>::Destroy");
+      for (SIZE d = 0; d < NumDevices; d++) {
+        delete[] queues[d];
+      }
+      delete[] queues;
+      queues = nullptr;
+      initialized = false;
+    }
+  }
+
+  MGARDX_CONT
+  DeviceQueues() { Initialize(); }
+
   MGARDX_CONT sycl::queue GetQueue(int dev_id, SIZE queue_id) {
+    Initialize();
     return queues[dev_id][queue_id];
   }
 
   MGARDX_CONT void SyncQueue(int dev_id, SIZE queue_id) {
+    Initialize();
     queues[dev_id][queue_id].wait();
   }
 
   MGARDX_CONT void SyncAllQueues(int dev_id) {
     for (SIZE i = 0; i < MGARDX_NUM_QUEUES; i++) {
+      Initialize();
       queues[dev_id][i].wait();
     }
   }
 
   MGARDX_CONT
-  ~DeviceQueues() {
-    for (SIZE d = 0; d < NumDevices; d++) {
-      delete[] queues[d];
-    }
-    delete[] queues;
-    queues = nullptr;
-  }
+  ~DeviceQueues() {}
 
+  int initialized = false;
   int NumDevices;
   sycl::queue **queues = nullptr;
 };
@@ -356,6 +374,10 @@ template <> class DeviceRuntime<SYCL> {
 public:
   MGARDX_CONT
   DeviceRuntime() {}
+
+  MGARDX_CONT static void Initialize() { queues.Initialize(); }
+
+  MGARDX_CONT static void Finalize() { queues.Destroy(); }
 
   MGARDX_CONT static int GetDeviceCount() { return DeviceSpecs.NumDevices; }
 
@@ -891,6 +913,7 @@ SINGLE_KERNEL_3D(Operation11);
 SINGLE_KERNEL_3D(Operation12);
 SINGLE_KERNEL_3D(Operation13);
 SINGLE_KERNEL_3D(Operation14);
+SINGLE_KERNEL_3D(Operation15);
 
 #undef SINGLE_KERNEL_3D
 
@@ -944,6 +967,7 @@ SINGLE_KERNEL_1D(Operation11);
 SINGLE_KERNEL_1D(Operation12);
 SINGLE_KERNEL_1D(Operation13);
 SINGLE_KERNEL_1D(Operation14);
+SINGLE_KERNEL_1D(Operation15);
 
 #undef SINGLE_KERNEL_1D
 
@@ -977,17 +1001,17 @@ public:
                     (i.get_local_id(0) / nblockx) % nblocky,
                     i.get_local_id(0) % nblockx, shared_memory);
 #endif
-    my_functor.Operation5();
+    my_functor.Operation6();
     i.barrier();
     while (my_functor.LoopCondition2()) {
-      my_functor.Operation6();
-      i.barrier();
       my_functor.Operation7();
       i.barrier();
       my_functor.Operation8();
       i.barrier();
+      my_functor.Operation9();
+      i.barrier();
     }
-    my_functor.Operation9();
+    my_functor.Operation10();
   }
 
 private:
@@ -1094,6 +1118,22 @@ template <typename Task> void SyclHuffmanCLCustomizedNoCGKernel(Task task) {
     });
     DeviceRuntime<SYCL>::SyncQueue(task.GetQueueIdx());
 
+    // std::cout << "calling Single_Operation4_Kernel\n";
+    q.submit([&](sycl::handler &h) {
+      LocalMemory localAccess{sm_size, h};
+#if MGARD_X_SYCL_ND_RANGE_3D
+      Single_Operation5_Kernel_3D kernel(task.GetFunctor(), localAccess);
+#endif
+#if MGARD_X_SYCL_ND_RANGE_1D
+      Single_Operation5_Kernel_1D kernel(
+          task.GetFunctor(), localAccess, task.GetGridDimZ(),
+          task.GetGridDimY(), task.GetGridDimX(), task.GetBlockDimZ(),
+          task.GetBlockDimY(), task.GetBlockDimX());
+#endif
+      h.parallel_for(sycl::nd_range{global_threads, local_threads}, kernel);
+    });
+    DeviceRuntime<SYCL>::SyncQueue(task.GetQueueIdx());
+
     // std::cout << "calling BranchCondition1\n";
     if (task.GetFunctor().BranchCondition1()) {
       DeviceRuntime<SYCL>::SyncQueue(task.GetQueueIdx());
@@ -1113,10 +1153,10 @@ template <typename Task> void SyclHuffmanCLCustomizedNoCGKernel(Task task) {
       q.submit([&](sycl::handler &h) {
         LocalMemory localAccess{sm_size, h};
 #if MGARD_X_SYCL_ND_RANGE_3D
-        Single_Operation10_Kernel_3D kernel(task.GetFunctor(), localAccess);
+        Single_Operation11_Kernel_3D kernel(task.GetFunctor(), localAccess);
 #endif
 #if MGARD_X_SYCL_ND_RANGE_1D
-        Single_Operation10_Kernel_1D kernel(
+        Single_Operation11_Kernel_1D kernel(
             task.GetFunctor(), localAccess, task.GetGridDimZ(),
             task.GetGridDimY(), task.GetGridDimX(), task.GetBlockDimZ(),
             task.GetBlockDimY(), task.GetBlockDimX());
@@ -1127,22 +1167,6 @@ template <typename Task> void SyclHuffmanCLCustomizedNoCGKernel(Task task) {
     }
 
     // std::cout << "calling Single_Operation11_Kernel\n";
-    q.submit([&](sycl::handler &h) {
-      LocalMemory localAccess{sm_size, h};
-#if MGARD_X_SYCL_ND_RANGE_3D
-      Single_Operation11_Kernel_3D kernel(task.GetFunctor(), localAccess);
-#endif
-#if MGARD_X_SYCL_ND_RANGE_1D
-      Single_Operation11_Kernel_1D kernel(
-          task.GetFunctor(), localAccess, task.GetGridDimZ(),
-          task.GetGridDimY(), task.GetGridDimX(), task.GetBlockDimZ(),
-          task.GetBlockDimY(), task.GetBlockDimX());
-#endif
-      h.parallel_for(sycl::nd_range{global_threads, local_threads}, kernel);
-    });
-    DeviceRuntime<SYCL>::SyncQueue(task.GetQueueIdx());
-
-    // std::cout << "calling Single_Operation12_Kernel\n";
     q.submit([&](sycl::handler &h) {
       LocalMemory localAccess{sm_size, h};
 #if MGARD_X_SYCL_ND_RANGE_3D
@@ -1158,7 +1182,7 @@ template <typename Task> void SyclHuffmanCLCustomizedNoCGKernel(Task task) {
     });
     DeviceRuntime<SYCL>::SyncQueue(task.GetQueueIdx());
 
-    // std::cout << "calling Single_Operation13_Kernel\n";
+    // std::cout << "calling Single_Operation12_Kernel\n";
     q.submit([&](sycl::handler &h) {
       LocalMemory localAccess{sm_size, h};
 #if MGARD_X_SYCL_ND_RANGE_3D
@@ -1173,7 +1197,8 @@ template <typename Task> void SyclHuffmanCLCustomizedNoCGKernel(Task task) {
       h.parallel_for(sycl::nd_range{global_threads, local_threads}, kernel);
     });
     DeviceRuntime<SYCL>::SyncQueue(task.GetQueueIdx());
-    // std::cout << "calling Single_Operation14_Kernel\n";
+
+    // std::cout << "calling Single_Operation13_Kernel\n";
     q.submit([&](sycl::handler &h) {
       LocalMemory localAccess{sm_size, h};
 #if MGARD_X_SYCL_ND_RANGE_3D
@@ -1181,6 +1206,21 @@ template <typename Task> void SyclHuffmanCLCustomizedNoCGKernel(Task task) {
 #endif
 #if MGARD_X_SYCL_ND_RANGE_1D
       Single_Operation14_Kernel_1D kernel(
+          task.GetFunctor(), localAccess, task.GetGridDimZ(),
+          task.GetGridDimY(), task.GetGridDimX(), task.GetBlockDimZ(),
+          task.GetBlockDimY(), task.GetBlockDimX());
+#endif
+      h.parallel_for(sycl::nd_range{global_threads, local_threads}, kernel);
+    });
+    DeviceRuntime<SYCL>::SyncQueue(task.GetQueueIdx());
+    // std::cout << "calling Single_Operation14_Kernel\n";
+    q.submit([&](sycl::handler &h) {
+      LocalMemory localAccess{sm_size, h};
+#if MGARD_X_SYCL_ND_RANGE_3D
+      Single_Operation15_Kernel_3D kernel(task.GetFunctor(), localAccess);
+#endif
+#if MGARD_X_SYCL_ND_RANGE_1D
+      Single_Operation15_Kernel_1D kernel(
           task.GetFunctor(), localAccess, task.GetGridDimZ(),
           task.GetGridDimY(), task.GetGridDimX(), task.GetBlockDimZ(),
           task.GetBlockDimY(), task.GetBlockDimX());
@@ -1734,8 +1774,10 @@ public:
   template <typename T>
   MGARDX_CONT static void Sum(SIZE n, SubArray<1, T, SYCL> v,
                               SubArray<1, T, SYCL> result,
-                              Array<1, Byte, SYCL> &workspace, int queue_idx) {
-    if (workspace.hasDeviceAllocation()) {
+                              Array<1, Byte, SYCL> &workspace,
+                              bool workspace_allocated, int queue_idx) {
+
+    if (workspace_allocated) {
       sycl::queue q = DeviceRuntime<SYCL>::GetQueue(queue_idx);
       q.submit([&](sycl::handler &h) {
         T *res = result.data();
@@ -1746,15 +1788,17 @@ public:
       });
       DeviceRuntime<SYCL>::SyncDevice();
     } else {
-      workspace = Array<1, Byte, SYCL>({(SIZE)1});
+      workspace.resize({(SIZE)1}, queue_idx);
     }
   }
 
   template <typename T>
-  MGARDX_CONT static void
-  AbsMax(SIZE n, SubArray<1, T, SYCL> v, SubArray<1, T, SYCL> result,
-         Array<1, Byte, SYCL> &workspace, int queue_idx) {
-    if (workspace.hasDeviceAllocation()) {
+  MGARDX_CONT static void AbsMax(SIZE n, SubArray<1, T, SYCL> v,
+                                 SubArray<1, T, SYCL> result,
+                                 Array<1, Byte, SYCL> &workspace,
+                                 bool workspace_allocated, int queue_idx) {
+
+    if (workspace_allocated) {
       sycl::queue q = DeviceRuntime<SYCL>::GetQueue(queue_idx);
       q.submit([&](sycl::handler &h) {
         T *res = result.data();
@@ -1765,15 +1809,17 @@ public:
       });
       DeviceRuntime<SYCL>::SyncDevice();
     } else {
-      workspace = Array<1, Byte, SYCL>({(SIZE)1});
+      workspace.resize({(SIZE)1}, queue_idx);
     }
   }
 
   template <typename T>
-  MGARDX_CONT static void
-  SquareSum(SIZE n, SubArray<1, T, SYCL> v, SubArray<1, T, SYCL> result,
-            Array<1, Byte, SYCL> &workspace, int queue_idx) {
-    if (workspace.hasDeviceAllocation()) {
+  MGARDX_CONT static void SquareSum(SIZE n, SubArray<1, T, SYCL> v,
+                                    SubArray<1, T, SYCL> result,
+                                    Array<1, Byte, SYCL> &workspace,
+                                    bool workspace_allocated, int queue_idx) {
+
+    if (workspace_allocated) {
       sycl::queue q = DeviceRuntime<SYCL>::GetQueue(queue_idx);
       q.submit([&](sycl::handler &h) {
         T *res = result.data();
@@ -1786,24 +1832,27 @@ public:
       });
       DeviceRuntime<SYCL>::SyncDevice();
     } else {
-      workspace = Array<1, Byte, SYCL>({(SIZE)1});
+      workspace.resize({(SIZE)1}, queue_idx);
     }
   }
 
   template <typename T>
   MGARDX_CONT static void
   ScanSumInclusive(SIZE n, SubArray<1, T, SYCL> v, SubArray<1, T, SYCL> result,
-                   Array<1, Byte, SYCL> &workspace, int queue_idx) {}
+                   Array<1, Byte, SYCL> &workspace, bool workspace_allocated,
+                   int queue_idx) {}
 
   template <typename T>
   MGARDX_CONT static void
   ScanSumExclusive(SIZE n, SubArray<1, T, SYCL> v, SubArray<1, T, SYCL> result,
-                   Array<1, Byte, SYCL> &workspace, int queue_idx) {}
+                   Array<1, Byte, SYCL> &workspace, bool workspace_allocated,
+                   int queue_idx) {}
 
   template <typename T>
   MGARDX_CONT static void
   ScanSumExtended(SIZE n, SubArray<1, T, SYCL> v, SubArray<1, T, SYCL> result,
-                  Array<1, Byte, SYCL> &workspace, int queue_idx) {}
+                  Array<1, Byte, SYCL> &workspace, bool workspace_allocated,
+                  int queue_idx) {}
 
   template <typename KeyT, typename ValueT>
   MGARDX_CONT static void SortByKey(SIZE n, SubArray<1, KeyT, SYCL> in_keys,
@@ -1811,8 +1860,9 @@ public:
                                     SubArray<1, KeyT, SYCL> out_keys,
                                     SubArray<1, ValueT, SYCL> out_values,
                                     Array<1, Byte, SYCL> &workspace,
-                                    int queue_idx) {
-    if (workspace.hasDeviceAllocation()) {
+                                    bool workspace_allocated, int queue_idx) {
+
+    if (workspace_allocated) {
       KeyT *keys_array = new KeyT[n];
       ValueT *values_array = new ValueT[n];
       MemoryManager<SYCL>::Copy1D(keys_array, in_keys.data(), n, 0);
@@ -1835,7 +1885,7 @@ public:
       delete[] keys_array;
       delete[] values_array;
     } else {
-      workspace = Array<1, Byte, SYCL>({(SIZE)1});
+      workspace.resize({(SIZE)1}, queue_idx);
     }
   }
 

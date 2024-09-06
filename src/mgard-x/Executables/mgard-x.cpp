@@ -39,20 +39,15 @@ void print_usage_message(std::string error) {
 \t\t -m <abs|rel>: error bound mode (abs: abolute; rel: relative)\n\
 \t\t -e <error>: error bound\n\
 \t\t -s <smoothness>: smoothness parameter\n\
-\t\t -r <0|1>: internal data layout (0: Higher throughput (default) | 1: Higher compression ratio)\n\
-\t\t -b <0|1>: domain decomposition type (0: 1D max dimension  (default)| 1: N-D block)\n\
-\t\t -f <bytes>: maximum memory footprint in bytes (if not specify, no limit)\n\
 \t\t -l choose lossless compressor (0:Huffman 1:Huffman+LZ4 2:Huffman+Zstd)\n\
+\t\t -d <auto|serial|openmp|cuda|hip|sycl>: device type\n\
+\t\t -v enable verbose (show timing and statistics)\n\
 \n\
 \t -x: decompress data\n\
 \t\t -c <path to compressed file>\n\
 \t\t -o <path to decompressed file>\n\
-\t -d <auto|serial|openmp|cuda|hip|sycl>: device type\n\
-\t -v <level>  verbose level (0: error only (default) | 1: error + infomation | 2: error + timing | 3: all)\n\
-\t -g <G> number of devices (GPUs) to use (default: 1)\n\
-\t -h <0|1>: enable/disable prefecth pipeline optimization (0: disable | 1: enable (default))\n\
-");
-
+\t\t -d <auto|serial|cuda|hip>: device type\n\
+\t\t -v enable verbose (show timing and statistics)\n");
   exit(0);
 }
 
@@ -300,23 +295,32 @@ int launch_compress(mgard_x::DIM D, enum mgard_x::data_type dtype,
                     const char *coords_file, double tol, double s,
                     enum mgard_x::error_bound_type mode, int reorder,
                     int lossless, int domain_decomposition,
-                    enum mgard_x::device_type dev_type, int num_dev,
-                    int verbose, bool prefetch,
-                    mgard_x::SIZE max_memory_footprint) {
+                    int hybrid_decomposition,
+                    enum mgard_x::device_type dev_type, int verbose,
+                    bool prefetch, mgard_x::SIZE max_memory_footprint) {
 
   mgard_x::Config config;
   config.log_level = verbose_to_log_level(verbose);
-  config.decomposition = mgard_x::decomposition_type::MultiDim;
+  if (hybrid_decomposition == 0) {
+    config.decomposition = mgard_x::decomposition_type::MultiDim;
+  } else {
+    config.decomposition = mgard_x::decomposition_type::Hybrid;
+    config.num_local_refactoring_level = 1;
+    // config.max_larget_level = 0;
+  }
+
   if (domain_decomposition == 0) {
     config.domain_decomposition = mgard_x::domain_decomposition_type::MaxDim;
   } else {
     config.domain_decomposition = mgard_x::domain_decomposition_type::Block;
   }
   config.dev_type = dev_type;
-  config.num_dev = num_dev;
   config.reorder = reorder;
   config.prefetch = prefetch;
   config.max_memory_footprint = max_memory_footprint;
+  config.huff_dict_size = 8192;
+  config.adjust_shape = false;
+  config.cache_compressor = true;
 
   if (lossless == 0) {
     config.lossless = mgard_x::lossless_type::Huffman;
@@ -349,15 +353,15 @@ int launch_compress(mgard_x::DIM D, enum mgard_x::data_type dtype,
               << in_size << " vs. " << original_size * sizeof(T) << "!\n";
   }
 
-  size_t compressed_size = original_size * sizeof(T) + OUTPUT_SAFTY_OVERHEAD;
+  size_t compressed_size = original_size * sizeof(T) * 2;
   void *compressed_data = (void *)malloc(compressed_size);
   mgard_x::pin_memory(original_data, original_size * sizeof(T), config);
   mgard_x::pin_memory(compressed_data, compressed_size, config);
   std::vector<const mgard_x::Byte *> coords_byte;
-  mgard_x::compress_status_type status;
+  mgard_x::compress_status_type ret;
   if (!non_uniform) {
-    status = mgard_x::compress(D, dtype, shape, tol, s, mode, original_data,
-                               compressed_data, compressed_size, config, true);
+    ret = mgard_x::compress(D, dtype, shape, tol, s, mode, original_data,
+                            compressed_data, compressed_size, config, true);
   } else {
     std::vector<T *> coords;
     if (non_uniform) {
@@ -366,36 +370,34 @@ int launch_compress(mgard_x::DIM D, enum mgard_x::data_type dtype,
     for (auto &coord : coords) {
       coords_byte.push_back((const mgard_x::Byte *)coord);
     }
-    status = mgard_x::compress(D, dtype, shape, tol, s, mode, original_data,
-                               compressed_data, compressed_size, coords_byte,
-                               config, true);
+    ret = mgard_x::compress(D, dtype, shape, tol, s, mode, original_data,
+                            compressed_data, compressed_size, coords_byte,
+                            config, true);
   }
 
-  if (status == mgard_x::compress_status_type::OutputTooLargeFailure) {
-    std::cout << mgard_x::log::log_err
-              << "Compression failed: output too large\n";
+  if (ret != mgard_x::compress_status_type::Success) {
+    std::cout << mgard_x::log::log_err << "Compression failed\n";
     exit(-1);
   }
 
   writefile(output_file, compressed_size, compressed_data);
 
   std::cout << mgard_x::log::log_info << "Compression ratio: "
-            << (double)original_size * sizeof(T) / compressed_size << "("
-            << original_size * sizeof(T) << "/" << compressed_size << ")\n";
+            << (double)original_size * sizeof(T) / compressed_size << "\n";
+  // printf("In size:  %10ld  Out size: %10ld  Compression ratio: %f \n",
+  //        original_size * sizeof(T), compressed_size,
+  //        (double)original_size * sizeof(T) / compressed_size);
 
-  if (verbose) {
-    config.log_level = verbose_to_log_level(verbose);
-    void *decompressed_data = malloc(original_size * sizeof(T));
-    mgard_x::pin_memory(decompressed_data, original_size * sizeof(T), config);
-    mgard_x::decompress(compressed_data, compressed_size, decompressed_data,
-                        config, true);
+  void *decompressed_data = malloc(original_size * sizeof(T));
+  mgard_x::pin_memory(decompressed_data, original_size * sizeof(T), config);
+  mgard_x::decompress(compressed_data, compressed_size, decompressed_data,
+                      config, true);
 
-    print_statistics<T>(s, mode, shape, original_data, (T *)decompressed_data,
-                        tol, config.normalize_coordinates);
+  print_statistics<T>(s, mode, shape, original_data, (T *)decompressed_data,
+                      tol, config.normalize_coordinates);
 
-    mgard_x::unpin_memory(decompressed_data, config);
-    delete[](T *) decompressed_data;
-  }
+  mgard_x::unpin_memory(decompressed_data, config);
+  free(decompressed_data);
 
   mgard_x::unpin_memory(original_data, config);
   mgard_x::unpin_memory(compressed_data, config);
@@ -406,14 +408,14 @@ int launch_compress(mgard_x::DIM D, enum mgard_x::data_type dtype,
 }
 
 int launch_decompress(const char *input_file, const char *output_file,
-                      enum mgard_x::device_type dev_type, int num_dev,
-                      int verbose, bool prefetch) {
+                      enum mgard_x::device_type dev_type, int verbose,
+                      bool prefetch) {
 
   mgard_x::Config config;
   config.log_level = verbose_to_log_level(verbose);
   config.dev_type = dev_type;
-  config.num_dev;
   config.prefetch = prefetch;
+  config.cache_compressor = true;
 
   mgard_x::SERIALIZED_TYPE *compressed_data;
   size_t compressed_size = readfile(input_file, compressed_data);
@@ -544,11 +546,6 @@ bool try_compression(int argc, char *argv[]) {
     verbose = get_arg_int(argc, argv, "-v");
   }
 
-  int num_dev = 1;
-  if (has_arg(argc, argv, "-g")) {
-    num_dev = get_arg_int(argc, argv, "-g");
-  }
-
   int repeat = 1;
   if (has_arg(argc, argv, "-p")) {
     repeat = get_arg_int(argc, argv, "-p");
@@ -570,6 +567,11 @@ bool try_compression(int argc, char *argv[]) {
     domain_decomposition = get_arg_int(argc, argv, "-b");
   }
 
+  int hybrid_decomposition = 0;
+  if (has_arg(argc, argv, "-y")) {
+    hybrid_decomposition = get_arg_int(argc, argv, "-y");
+  }
+
   if (verbose)
     std::cout << mgard_x::log::log_info << "Verbose: enabled\n";
   for (int repeat_iter = 0; repeat_iter < repeat; repeat_iter++) {
@@ -577,16 +579,17 @@ bool try_compression(int argc, char *argv[]) {
       launch_compress<double>(
           D, dtype, input_file.c_str(), output_file.c_str(), shape, non_uniform,
           non_uniform_coords_file.c_str(), tol, s, mode, reorder,
-          lossless_level, domain_decomposition, dev_type, num_dev, verbose,
-          prefetch, max_memory_footprint);
+          lossless_level, domain_decomposition, hybrid_decomposition, dev_type,
+          verbose, prefetch, max_memory_footprint);
     } else if (dtype == mgard_x::data_type::Float) {
       launch_compress<float>(
           D, dtype, input_file.c_str(), output_file.c_str(), shape, non_uniform,
           non_uniform_coords_file.c_str(), tol, s, mode, reorder,
-          lossless_level, domain_decomposition, dev_type, num_dev, verbose,
-          prefetch, max_memory_footprint);
+          lossless_level, domain_decomposition, hybrid_decomposition, dev_type,
+          verbose, prefetch, max_memory_footprint);
     }
   }
+  mgard_x::release_cache(mgard_x::Config());
   return true;
 }
 
@@ -630,11 +633,6 @@ bool try_decompression(int argc, char *argv[]) {
     verbose = get_arg_int(argc, argv, "-v");
   }
 
-  int num_dev = 1;
-  if (has_arg(argc, argv, "-g")) {
-    num_dev = get_arg_int(argc, argv, "-g");
-  }
-
   int repeat = 1;
   if (has_arg(argc, argv, "-p")) {
     repeat = get_arg_int(argc, argv, "-p");
@@ -649,8 +647,9 @@ bool try_decompression(int argc, char *argv[]) {
     std::cout << mgard_x::log::log_info << "verbose: enabled.\n";
   for (int repeat_iter = 0; repeat_iter < repeat; repeat_iter++) {
     launch_decompress(input_file.c_str(), output_file.c_str(), dev_type,
-                      num_dev, verbose, prefetch);
+                      verbose, prefetch);
   }
+  mgard_x::release_cache(mgard_x::Config());
   return true;
 }
 
@@ -661,3 +660,4 @@ int main(int argc, char *argv[]) {
   }
   return 0;
 }
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 

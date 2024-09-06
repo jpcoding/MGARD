@@ -227,9 +227,7 @@ void Hierarchy<D, T, DeviceType>::init(std::vector<SIZE> shape,
   }
 
   _l_target = nlevel - 1;
-  if (max_larget_level != 0) {
-    _l_target = std::min(_l_target, max_larget_level);
-  }
+  _l_target = std::min(_l_target, max_larget_level);
 
   for (int l = 0; l < _l_target + 1; l++) {
     std::vector<SIZE> curr_level_shape(D);
@@ -434,7 +432,7 @@ void Hierarchy<D, T, DeviceType>::init(std::vector<SIZE> shape,
 
 template <DIM D, typename T, typename DeviceType>
 size_t
-Hierarchy<D, T, DeviceType>::estimate_memory_usgae(std::vector<SIZE> shape) {
+Hierarchy<D, T, DeviceType>::EstimateMemoryFootprint(std::vector<SIZE> shape) {
 
   size_t estimate_memory_usgae = 0;
   Array<1, T, DeviceType> array_with_pitch({1});

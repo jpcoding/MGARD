@@ -10,7 +10,7 @@ namespace mgard_x {
 struct Config {
   device_type dev_type;
   int dev_id;
-  int num_dev;
+  enum compressor_type compressor;
   enum domain_decomposition_type domain_decomposition;
   enum decomposition_type decomposition;
   double estimate_outlier_ratio;
@@ -27,10 +27,14 @@ struct Config {
   SIZE max_memory_footprint;
   SIZE total_num_bitplanes;
   SIZE block_size;
+  SIZE temporal_dim;
+  SIZE temporal_dim_size;
   bool mdr_adaptive_resolution;
   bool collect_uncertainty;
   bool adjust_shape;
   bool compress_with_dryrun;
+  int num_local_refactoring_level;
+  bool cache_compressor;
 
   Config();
   void apply();

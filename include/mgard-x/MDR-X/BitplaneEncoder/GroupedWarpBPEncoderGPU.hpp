@@ -55,7 +55,7 @@ class GroupedWarpEncoderFunctor : public Functor<DeviceType> {
 public:
   MGARDX_CONT GroupedWarpEncoderFunctor() {}
   MGARDX_CONT GroupedWarpEncoderFunctor(
-      LENGTH n, SIZE exp, SubArray<1, T, DeviceType> v,
+      SIZE n, SIZE exp, SubArray<1, T, DeviceType> v,
       SubArray<2, T_bitplane, DeviceType> encoded_bitplanes,
       SubArray<2, T_error, DeviceType> level_errors_workspace)
       : n(n), exp(exp), encoded_bitplanes(encoded_bitplanes), v(v),
@@ -384,7 +384,7 @@ public:
 
 private:
   // parameters
-  LENGTH n;
+  SIZE n;
   SIZE exp;
   SubArray<1, T, DeviceType> v;
   SubArray<2, T_bitplane, DeviceType> encoded_bitplanes;
@@ -429,7 +429,7 @@ public:
   constexpr static std::string_view Name = "grouped warp bp encoder";
   MGARDX_CONT
   GroupedWarpEncoderKernel(
-      LENGTH n, SIZE exp, SubArray<1, T, DeviceType> v,
+      SIZE n, SIZE exp, SubArray<1, T, DeviceType> v,
       SubArray<2, T_bitplane, DeviceType> encoded_bitplanes,
       SubArray<2, T_error, DeviceType> level_errors_workspace)
       : n(n), exp(exp), encoded_bitplanes(encoded_bitplanes), v(v),
@@ -464,7 +464,7 @@ public:
   }
 
 private:
-  LENGTH n;
+  SIZE n;
   SIZE exp;
   SubArray<1, T, DeviceType> v;
   SubArray<2, T_bitplane, DeviceType> encoded_bitplanes;
@@ -479,7 +479,7 @@ class GroupedWarpDecoderFunctor : public Functor<DeviceType> {
 public:
   MGARDX_CONT GroupedWarpDecoderFunctor() {}
   MGARDX_CONT GroupedWarpDecoderFunctor(
-      LENGTH n, SIZE starting_bitplane, SIZE exp,
+      SIZE n, SIZE starting_bitplane, SIZE exp,
       SubArray<2, T_bitplane, DeviceType> encoded_bitplanes,
       SubArray<1, bool, DeviceType> signs, SubArray<1, T, DeviceType> v)
       : n(n), starting_bitplane(starting_bitplane), exp(exp),
@@ -712,7 +712,7 @@ public:
 
 private:
   // parameters
-  LENGTH n;
+  SIZE n;
   SIZE starting_bitplane;
   SIZE exp;
   SubArray<2, T_bitplane, DeviceType> encoded_bitplanes;
@@ -752,7 +752,7 @@ public:
   constexpr static std::string_view Name = "grouped warp bp decoder";
   MGARDX_CONT
   GroupedWarpDecoderKernel(
-      LENGTH n, SIZE starting_bitplane, SIZE exp,
+      SIZE n, SIZE starting_bitplane, SIZE exp,
       SubArray<2, T_bitplane, DeviceType> encoded_bitplanes,
       SubArray<1, bool, DeviceType> signs, SubArray<1, T, DeviceType> v)
       : n(n), starting_bitplane(starting_bitplane), exp(exp),
@@ -786,7 +786,7 @@ public:
   }
 
 private:
-  LENGTH n;
+  SIZE n;
   SIZE starting_bitplane;
   SIZE exp;
   SubArray<2, T_bitplane, DeviceType> encoded_bitplanes;
@@ -816,16 +816,17 @@ public:
     SIZE max_bitplane = 64;
     level_errors_work_array =
         Array<2, T_error, DeviceType>({max_bitplane + 1, MGARDX_NUM_SMs});
-    DeviceCollective<DeviceType>::Sum(
-        MGARDX_NUM_SMs, SubArray<1, T_error, DeviceType>(),
-        SubArray<1, T_error, DeviceType>(), level_error_sum_work_array, 0);
+    DeviceCollective<DeviceType>::Sum(MGARDX_NUM_SMs,
+                                      SubArray<1, T_error, DeviceType>(),
+                                      SubArray<1, T_error, DeviceType>(),
+                                      level_error_sum_work_array, false, 0);
   }
 
   static size_t EstimateMemoryFootprint(std::vector<SIZE> shape) {
     Hierarchy<D, T_data, DeviceType> hierarchy(shape, Config());
     SIZE max_bitplane = 64;
     size_t size = 0;
-    size += hierarchy.estimate_memory_usgae(shape);
+    size += hierarchy.EstimateMemoryFootprint(shape);
     size += (max_bitplane + 1) * MGARDX_NUM_SMs * sizeof(T_error);
     for (int level_idx = 0; level_idx < hierarchy.l_target() + 1; level_idx++) {
       size += hierarchy.level_num_elems(level_idx) * sizeof(bool);
@@ -927,7 +928,8 @@ public:
                                                    level_errors_work(i, 0));
       SubArray<1, T_error, DeviceType> sum_error({1}, level_errors(i));
       DeviceCollective<DeviceType>::Sum(reduce_size, curr_errors, sum_error,
-                                        level_error_sum_work_array, queue_idx);
+                                        level_error_sum_work_array, true,
+                                        queue_idx);
     }
 
     for (int i = 0; i < num_bitplanes; i++) {
@@ -1035,7 +1037,7 @@ public:
     if (BINARY_TYPE == BINARY) {
       MaxLengthPerTBPerIter *= 2;
     }
-    LENGTH NumIters = (n - 1) / (MGARDX_NUM_SMs * NumElemPerTBPerIter) + 1;
+    SIZE NumIters = (n - 1) / (MGARDX_NUM_SMs * NumElemPerTBPerIter) + 1;
     return MaxLengthPerTBPerIter * MGARDX_NUM_SMs * NumIters;
   }
 

@@ -6,8 +6,8 @@
 #include "BitplaneEncoderInterface.hpp"
 #include <string.h>
 
-// #define BINARY_TYPE BINARY
-#define BINARY_TYPE NEGABINARY
+#define BINARY_TYPE BINARY
+// #define BINARY_TYPE NEGABINARY
 
 // #define DATA_ENCODING_ALGORITHM Bit_Transpose_Serial_All
 #define DATA_ENCODING_ALGORITHM Bit_Transpose_Parallel_B_Serial_b
@@ -150,7 +150,10 @@ public:
       sm_fix_point[local_data_idx] = fp_data;
       sm_shifted[local_data_idx] = shifted_data;
       if (BinaryType == BINARY) {
-        sm_signs[local_data_idx] = signbit(cur_data) << (sizeof(T_fp) * 8 - 1);
+        sm_signs[local_data_idx] = ((T_sfp)signbit(cur_data))
+                                   << (sizeof(T_fp) * 8 - 1);
+        // printf("data: %f, signbit(cur_data): %d, sm_signs: %llu\n", cur_data,
+        // signbit(cur_data), sm_signs[local_data_idx]);
       }
       // printf("%llu, %f -> %f-> %u\n", global_data_idx, cur_data,
       // shifted_data, sm_fix_point[local_data_idx] );
@@ -235,6 +238,7 @@ public:
 
   MGARDX_EXEC void Operation5() {
     if (debug) {
+      // clang-format off
       // for (int i = 0; i < num_elems_per_TB; i++) {
       //   printf("input[%u]\torg\t%f\t2^%d\tfp\t%llu:\t", i,
       //   *v(FunctorBase<DeviceType>::GetBlockIdX()*num_elems_per_TB+i),
@@ -243,12 +247,17 @@ public:
       //   printf("\n");
       // }
 
+      // for (int i = 0; i < num_elems_per_TB; i++) {
+      //   printf("sm_signs[%u]\t", i);
+      //   print_bits(sm_signs[i], sizeof(T_fp)*8);
+      //   printf("\n");
+      // }
+
       // for (int i = 0; i < num_bitplanes; i++) {
       //   printf("sm_bitplane %d: ", i);
       //   for (int j = 0; j < num_batches_per_TB; j++) {
       //     printf("\t%u:\t", sm_bitplanes[j * num_bitplanes + i]);
-      //     print_bits(sm_bitplanes[j * num_bitplanes + i],
-      //     sizeof(T_bitplane)*8, false);
+      //     print_bits(sm_bitplanes[j * num_bitplanes + i], sizeof(T_bitplane)*8, false);
 
       //   }
       //   printf("\n");
@@ -256,35 +265,33 @@ public:
 
       // for (int j = 0; j < num_batches_per_TB; j++) {
       //   printf("sm_bitplane_sign[%d]: ", j);
-      //   printf("\t%u:\t", sm_bitplanes[num_batches_per_TB * num_bitplanes +
-      //   j]); print_bits(sm_bitplanes[num_batches_per_TB * num_bitplanes + j],
-      //   sizeof(T_bitplane)*8, false); printf("\n");
+      //   printf("\t%u:\t", sm_bitplanes[num_batches_per_TB * num_bitplanes + j]); 
+      //   print_bits(sm_bitplanes[num_batches_per_TB * num_bitplanes + j], sizeof(T_bitplane)*8, false); 
+      //   printf("\n");
       // }
 
       // for (int i = 0; i < num_bitplanes; i++) {
       //   printf("bitplane %d: ", i);
       //   for (int j = 0; j < num_batches_per_TB; j++) {
       //     printf("\t%u:\t", *encoded_bitplanes(i, block_offset + j));
-      //     print_bits(*encoded_bitplanes(i, block_offset + j),
-      //     sizeof(T_bitplane)*8, false);
-
+      //     print_bits(*encoded_bitplanes(i, block_offset + j), sizeof(T_bitplane)*8, false);
       //   }
       //   printf("\n");
       // }
 
       // for (int i = 0; i < num_batches_per_TB; i ++) {
       //   printf("sign %d: ", i);
-      //   printf("\t%u:\t", *encoded_bitplanes(0, block_offset +
-      //   num_batches_per_TB + i)); print_bits(*encoded_bitplanes(0,
-      //   block_offset + num_batches_per_TB + i), sizeof(T_bitplane)*8, false);
+      //   printf("\t%u:\t", *encoded_bitplanes(0, block_offset + num_batches_per_TB + i)); 
+      //   print_bits(*encoded_bitplanes(0, block_offset + num_batches_per_TB + i), sizeof(T_bitplane)*8, false);
       //   printf("\n");
       // }
 
       // for (int i = 0; i < num_bitplanes + 1; i++) {
       //   printf("error %d/%d: ", i, num_bitplanes + 1);
-      //     printf (" %f ", sm_errors[i]);
+      //   printf (" %f ", sm_errors[i]);
       //   printf("\n");
       // }
+      // clang-format on
     }
   }
 
@@ -468,7 +475,7 @@ public:
                                         local_data_idx);
         }
       } else {
-        if (local_data_idx < num_elems_per_TB) {
+        if (local_data_idx < num_elems_per_TB && global_data_idx < n) {
           sm_signs[local_data_idx] = *signs(global_data_idx);
         }
       }
@@ -545,12 +552,16 @@ public:
       T_fp fp_data = sm_fix_point[local_data_idx];
       if (BinaryType == BINARY) {
         T cur_data = ldexp((T)fp_data, -ending_bitplane + exp);
-        *v(global_data_idx) = sm_signs[local_data_idx] ? -cur_data : cur_data;
-        *signs(global_data_idx) = sm_signs[local_data_idx];
+        if (global_data_idx < n) {
+          *v(global_data_idx) = sm_signs[local_data_idx] ? -cur_data : cur_data;
+          *signs(global_data_idx) = sm_signs[local_data_idx];
+        }
       } else if (BinaryType == NEGABINARY) {
         T cur_data = ldexp((T)Math<DeviceType>::negabinary2binary(fp_data),
                            -ending_bitplane + exp);
-        *v(global_data_idx) = ending_bitplane % 2 != 0 ? -cur_data : cur_data;
+        if (global_data_idx < n) {
+          *v(global_data_idx) = ending_bitplane % 2 != 0 ? -cur_data : cur_data;
+        }
       }
     }
   }
@@ -716,9 +727,10 @@ public:
     SIZE max_bitplane = 64;
     level_errors_work_array = Array<2, T_error, DeviceType>(
         {max_bitplane + 1, num_blocks(max_level_num_elems)});
-    DeviceCollective<DeviceType>::Sum(
-        num_blocks(max_level_num_elems), SubArray<1, T_error, DeviceType>(),
-        SubArray<1, T_error, DeviceType>(), level_error_sum_work_array, 0);
+    DeviceCollective<DeviceType>::Sum(num_blocks(max_level_num_elems),
+                                      SubArray<1, T_error, DeviceType>(),
+                                      SubArray<1, T_error, DeviceType>(),
+                                      level_error_sum_work_array, false, 0);
   }
 
   static size_t EstimateMemoryFootprint(std::vector<SIZE> shape) {
@@ -726,7 +738,7 @@ public:
     SIZE max_level_num_elems = hierarchy.level_num_elems(hierarchy.l_target());
     SIZE max_bitplane = 64;
     size_t size = 0;
-    size += hierarchy.estimate_memory_usgae(shape);
+    size += hierarchy.EstimateMemoryFootprint(shape);
     size +=
         (max_bitplane + 1) * num_blocks(max_level_num_elems) * sizeof(T_error);
     for (int level_idx = 0; level_idx < hierarchy.l_target() + 1; level_idx++) {
@@ -757,7 +769,8 @@ public:
                                                    level_errors_work(i, 0));
       SubArray<1, T_error, DeviceType> sum_error({1}, level_errors(i));
       DeviceCollective<DeviceType>::Sum(reduce_size, curr_errors, sum_error,
-                                        level_error_sum_work_array, queue_idx);
+                                        level_error_sum_work_array, true,
+                                        queue_idx);
     }
     for (int i = 0; i < num_bitplanes; i++) {
       streams_sizes[i] = buffer_size(n) * sizeof(T_bitplane);

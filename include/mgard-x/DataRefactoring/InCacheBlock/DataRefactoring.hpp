@@ -8,8 +8,9 @@
 #include "../../Hierarchy/Hierarchy.h"
 #include "../../RuntimeX/RuntimeX.h"
 
+#include "Autocorrelation8x8x8.hpp"
 #include "DataRefactoring.h"
-#include "DataRefactoringKernel.hpp"
+#include "MultiDimension8x8x8.hpp"
 
 #include <iostream>
 
@@ -23,43 +24,38 @@ namespace data_refactoring {
 namespace in_cache_block {
 
 template <DIM D, typename T, typename DeviceType>
-void decompose(Hierarchy<D, T, DeviceType> &hierarchy,
-               SubArray<D, T, DeviceType> &v, SubArray<D, T, DeviceType> w,
-               SubArray<D, T, DeviceType> b, int start_level, int stop_level,
-               int queue_idx) {
-
-  if (start_level < 0 || start_level > hierarchy.l_target()) {
-    std::cout << log::log_err << "decompose: start_level out of bound.\n";
-    exit(-1);
-  }
-
-  if (stop_level < 0 || stop_level > hierarchy.l_target()) {
-    std::cout << log::log_err << "decompose: stop_level out of bound.\n";
-    exit(-1);
-  }
-
+void decompose(SubArray<D, T, DeviceType> v, SubArray<D, T, DeviceType> coarse,
+               SubArray<1, T, DeviceType> coeff, int queue_idx) {
   if constexpr (D <= 3) {
     DeviceLauncher<DeviceType>::Execute(
-        DataRefactoringKernel<D, T, 8, 8, 8, DECOMPOSE, DeviceType>(v),
+        MultiDimension8x8x8Kernel<D, T, DECOMPOSE, DeviceType>(v, coarse,
+                                                               coeff),
         queue_idx);
+
+    // Array<D, T, DeviceType> ac_x({(v.shape(0)-1)/8+1, (v.shape(1)-1)/8+1,
+    // (v.shape(2)-1)/8+1}, false, false); Array<D, T, DeviceType>
+    // ac_y({(v.shape(0)-1)/8+1, (v.shape(1)-1)/8+1, (v.shape(2)-1)/8+1}, false,
+    // false); Array<D, T, DeviceType> ac_z({(v.shape(0)-1)/8+1,
+    // (v.shape(1)-1)/8+1, (v.shape(2)-1)/8+1}, false, false);
+
+    // DeviceLauncher<DeviceType>::Execute(
+    //     Autocorrelation8x8x8Kernel<D, T, DECOMPOSE, DeviceType>(v,
+    //     SubArray(ac_x), SubArray(ac_y),
+    //                                                                SubArray(ac_z),
+    //                                                                   1),
+    //                                                                   queue_idx);
+
+    // PrintSubarray("ac_x", SubArray<2, T, DeviceType>({ac_x.shape(0),
+    // ac_x.shape(1)}, ac_x.data())); PrintSubarray("ac_y", SubArray<2, T,
+    // DeviceType>({ac_x.shape(0), ac_y.shape(1)}, ac_y.data()));
+    // PrintSubarray("ac_z", SubArray<2, T, DeviceType>({ac_z.shape(0),
+    // ac_z.shape(1)}, ac_z.data()));
   }
 }
 
 template <DIM D, typename T, typename DeviceType>
-void recompose(Hierarchy<D, T, DeviceType> &hierarchy,
-               SubArray<D, T, DeviceType> &v, SubArray<D, T, DeviceType> w,
-               SubArray<D, T, DeviceType> b, int start_level, int stop_level,
-               int queue_idx) {
-
-  if (stop_level < 0 || stop_level > hierarchy.l_target()) {
-    std::cout << log::log_err << "recompose: stop_level out of bound.\n";
-    exit(-1);
-  }
-
-  if (start_level < 0 || start_level > hierarchy.l_target()) {
-    std::cout << log::log_err << "recompose: start_level out of bound.\n";
-    exit(-1);
-  }
+void recompose(SubArray<D, T, DeviceType> v, SubArray<D, T, DeviceType> coarse,
+               SubArray<1, T, DeviceType> coeff, int queue_idx) {
 
   if constexpr (D <= 3) {
   }

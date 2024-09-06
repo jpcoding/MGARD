@@ -12,7 +12,7 @@ list(INSERT CMAKE_MODULE_PATH 0 "${CMAKE_CURRENT_LIST_DIR}/cmake")
 
 set(MGARD_VERSION_MAJOR "1")
 set(MGARD_VERSION_MINOR "5")
-set(MGARD_VERSION_PATCH "0")
+set(MGARD_VERSION_PATCH "2")
 
 set(MGARD_FILE_VERSION_MAJOR "1")
 set(MGARD_FILE_VERSION_MINOR "0")
@@ -22,7 +22,6 @@ project(
   MGARD
   HOMEPAGE_URL "https://github.com/CODARcode/MGARD"
   VERSION "${MGARD_VERSION_MAJOR}.${MGARD_VERSION_MINOR}.${MGARD_VERSION_PATCH}"
-  #CUDA will be enabled below if `MGARD_ENABLE_CUDA` is `ON`.
   LANGUAGES CXX
 )
 
@@ -39,10 +38,10 @@ option(MGARD_ENABLE_SERIAL "Enable SERIAL support" ON)
 option(MGARD_ENABLE_HIP "Enable HIP support" OFF)
 option(MGARD_ENABLE_SYCL "Enable SYCL support" OFF)
 option(MGARD_ENABLE_LEGACY_CUDA "Enable legacy CUDA support" OFF)
-option(MGARD_ENABLE_MULTI_DEVICE "Enable multi-device" OFF)
 option(MGARD_ENABLE_COORDINATE_NORMALIZATION "Enable coordinate normalication for uniform grid" ON)
 option(MGARD_ENABLE_AUTO_TUNING "Enable auto tuning" OFF)
 option(MGARD_ENABLE_MDR "Enable MDR" OFF)
+option(MGARD_ENABLE_EXTERNAL_COMPRESSOR "Enable external compressor" OFF)
 
 option(MGARD_ENABLE_CLI "Build executable." OFF)
 
@@ -127,10 +126,16 @@ if (MGARD_ENABLE_SERIAL OR
                                                       $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/include>)
   install(TARGETS mgard-x-autotuner)
 
+  add_executable(mgard-cpu ${CMAKE_CURRENT_SOURCE_DIR}/src/mgard-x/Executables/MgardSerialExec.cpp)
+  target_link_libraries(mgard-cpu mgard-library  ${CMAKE_DL_LIBS})
+  target_include_directories(mgard-cpu PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+                                                      $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/include>)
+  install(TARGETS mgard-cpu)
+
   if(MGARD_ENABLE_MDR)
     add_executable(mdr-x ${CMAKE_CURRENT_SOURCE_DIR}/src/mgard-x/Executables/mdr-x.cpp)
     target_link_libraries(mdr-x mgard-library  ${CMAKE_DL_LIBS})
-    target_include_directories(mgard-x PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+    target_include_directories(mdr-x PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
                                               $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/include>)
     install(TARGETS mdr-x)
   endif()
@@ -147,8 +152,6 @@ endif()
 if(MGARD_ENABLE_OPENMP)
   target_compile_definitions(mgard-library PUBLIC MGARD_ENABLE_OPENMP)
   set_source_files_properties(${MGARD_X_OPENMP_SRC} PROPERTIES LANGUAGE CXX)
-  # Multi-device has to be off when using OpenMP
-  set(MGARD_ENABLE_MULTI_DEVICE OFF)
 endif()
 
 if(MGARD_ENABLE_CUDA)
@@ -349,8 +352,7 @@ if(MGARD_ENABLE_LEGACY_CUDA)
   target_link_libraries(mgard-library PUBLIC nvcomp::nvcomp CUDA::cudart)
 endif()
 
-if(MGARD_ENABLE_MULTI_DEVICE OR 
-   MGARD_ENABLE_OPENMP)
+if(MGARD_ENABLE_OPENMP)
   find_package(OpenMP REQUIRED)
   target_link_libraries(mgard-library PUBLIC OpenMP::OpenMP_CXX)
   # A bug in CMake causing the '-fopenmp' flag missing when compiling device units during separate compilation
@@ -486,7 +488,6 @@ if (MGARD_ENABLE_LEGACY_CUDA)
   message(STATUS "CUDA Arch: ${CMAKE_CUDA_ARCHITECTURES}")
   list(POP_BACK CMAKE_MESSAGE_INDENT)
 endif()
-message(STATUS "multi-device:  ${MGARD_ENABLE_MULTI_DEVICE}")
 message(STATUS "auto tuning:   ${MGARD_ENABLE_AUTO_TUNING}")
 message(STATUS "MDR:           ${MGARD_ENABLE_MDR}")
 message(STATUS "timing:        ${MGARD_ENABLE_TIMING}")

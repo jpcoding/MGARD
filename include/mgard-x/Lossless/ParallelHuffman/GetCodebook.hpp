@@ -5,6 +5,7 @@
  * Date: March 17, 2022
  */
 
+#include "EntropyCalculator.hpp"
 #include "FillArraySequence.hpp"
 #include "GenerateCL.hpp"
 #include "GenerateCW.hpp"
@@ -48,7 +49,7 @@ void GetCodebook(int dict_size,
   DeviceCollective<DeviceType>::SortByKey(
       (SIZE)dict_size, workspace._d_freq_copy_subarray,
       workspace._d_qcode_copy_subarray, _d_freq_subarray, _d_qcode_subarray,
-      workspace.sort_by_key_workspace, queue_idx);
+      workspace.sort_by_key_workspace, true, queue_idx);
 
   DeviceLauncher<DeviceType>::Execute(
       GetFirstNonzeroIndexKernel<unsigned int, DeviceType>(
@@ -66,6 +67,9 @@ void GetCodebook(int dict_size,
     PrintSubarray("SortByKey::_d_qcode_subarray", _d_qcode_subarray);
     // std::cout << "first_nonzero_index: " << first_nonzero_index << std::endl;
   }
+
+  // DumpSubArray("freq_"+std::to_string(workspace.huff_array.shape(0))+".dat",
+  // _d_freq_subarray);
 
   int nz_dict_size = dict_size - first_nonzero_index;
 
@@ -91,10 +95,19 @@ void GetCodebook(int dict_size,
                                      queue_idx);
   DeviceRuntime<DeviceType>::SyncQueue(queue_idx);
 
-  if (debug_print_huffman) {
-    PrintSubarray("GenerateCL::CL_subarray", workspace.CL_subarray);
-    std::cout << "GenerateCL: max_CL" << max_CL << std::endl;
+  if (log::level & log::INFO) {
+    // PrintSubarray("GenerateCL::CL_subarray", workspace.CL_subarray);
+    // std::cout << "GenerateCL: max_CL: " << max_CL << std::endl;
+    double LC = CalculateLC(workspace.huff_array.shape(0), nz_dict_size,
+                            _nz_d_freq_subarray, workspace.CL_subarray);
+    double entropy = CalculateEntropy(workspace.huff_array.shape(0),
+                                      nz_dict_size, _nz_d_freq_subarray);
+    log::info("LC: " + std::to_string(LC));
+    log::info("Entropy: " + std::to_string(entropy));
   }
+
+  // DumpSubArray("cl_"+std::to_string(workspace.huff_array.shape(0))+".dat",
+  // _d_freq_subarray);
 
   int max_CW_bits = (sizeof(H) * 8) - 8;
   if (max_CL > max_CW_bits) {

@@ -14,7 +14,7 @@ namespace mgard_x {
 Config::Config() {
   dev_type = device_type::AUTO;
   dev_id = 0;
-  num_dev = 1;
+  compressor = compressor_type::MGARD;
   domain_decomposition = domain_decomposition_type::MaxDim;
   decomposition = decomposition_type::MultiDim;
   estimate_outlier_ratio = 1.0;
@@ -30,15 +30,19 @@ Config::Config() {
   lossless = lossless_type::Huffman;
   reorder = 0;
   log_level = log::ERR;
-  max_larget_level = 0; // no limit
+  max_larget_level = std::numeric_limits<SIZE>::max(); // no limit
   prefetch = true;
   max_memory_footprint = std::numeric_limits<SIZE>::max(); // no limit
   total_num_bitplanes = 32;
   block_size = 256;
+  temporal_dim = 0;
+  temporal_dim_size = std::numeric_limits<SIZE>::max();
   mdr_adaptive_resolution = false;
   collect_uncertainty = false;
   adjust_shape = false;
   compress_with_dryrun = false;
+  num_local_refactoring_level = 1;
+  cache_compressor = false;
 }
 
 void Config::apply() { log::level = log_level; }
