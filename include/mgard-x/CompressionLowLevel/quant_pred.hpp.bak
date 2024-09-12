@@ -49,12 +49,12 @@ public:
      if(A == unpred || B == unpred || C == unpred){
       return 0;
      }
-     if( B > quant_radius && C > quant_radius){
-       return B+C-A-quant_radius;
+     if( B > quant_radius && C > quant_radius && A > quant_radius){
+       return B+C-A;
      }
-     else if (B< quant_radius && C < quant_radius )
+     else if (B< quant_radius && C < quant_radius && A < quant_radius)
      {
-      return B+C-A-quant_radius; 
+      return B+C-A; 
      }
      else{
       return 0;
@@ -70,12 +70,12 @@ public:
      if(A == unpred || B == unpred || C == unpred){
       return 0;
      }
-     if( B > quant_radius && C > quant_radius){ 
-       return B+C-A-quant_radius;
+     if( B > quant_radius && C > quant_radius && A > quant_radius){ 
+       return B+C-A;
      }
-     else if (B< quant_radius && C < quant_radius )
+     else if (B< quant_radius && C < quant_radius && A < quant_radius)
      {
-      return B+C-A-quant_radius; 
+      return B+C-A; 
      }
      else{
       return 0;

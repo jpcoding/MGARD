@@ -8,6 +8,9 @@ if(CMAKE_CURRENT_SOURCE_DIR STREQUAL CMAKE_CURRENT_BINARY_DIR)
   )
 endif()
 
+set(CMAKE_CXX_STANDARD 17) 
+set (SZ3_INC "/scratch/pji228/graveyard/sz3_orig/include/")
+
 set(CMAKE_SKIP_BUILD_RPATH FALSE)
 set(CMAKE_BUILD_WITH_INSTALL_RPATH FALSE)
 set(CMAKE_INSTALL_RPATH "${CMAKE_INSTALL_LIBDIR}")
@@ -127,7 +130,8 @@ if (MGARD_ENABLE_SERIAL OR
   add_executable(mgard-x ${CMAKE_CURRENT_SOURCE_DIR}/src/mgard-x/Executables/mgard-x.cpp)
   target_link_libraries(mgard-x mgard-library  ${CMAKE_DL_LIBS})
   target_include_directories(mgard-x PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-                                            $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/include>)
+                                            $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/include>
+                                            )
   install(TARGETS mgard-x)
 
   add_executable(mgard-x-autotuner ${CMAKE_CURRENT_SOURCE_DIR}/src/mgard-x/Executables/mgard-x-autotuner.cpp)
@@ -139,7 +143,8 @@ if (MGARD_ENABLE_SERIAL OR
   add_executable(mgard-cpu ${CMAKE_CURRENT_SOURCE_DIR}/src/mgard-x/Executables/MgardSerialExec.cpp)
   target_link_libraries(mgard-cpu mgard-library  ${CMAKE_DL_LIBS})
   target_include_directories(mgard-cpu PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-                                                      $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/include>)
+                                                      $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/include>
+                                                      )
   install(TARGETS mgard-cpu)
 
   if(MGARD_ENABLE_MDR)
@@ -353,6 +358,10 @@ if(zstd_FOUND)
   target_compile_definitions(mgard-library PUBLIC MGARD_ZSTD)
   target_link_libraries(mgard-library PUBLIC PkgConfig::zstd)
 endif()
+
+message(STATUS "zstd" PkgConfig::zstd)
+
+target_include_directories(mgard-library PUBLIC ${SZ3_INC})
 
 if(MGARD_ENABLE_CUDA)
   target_link_libraries(mgard-library PUBLIC nvcomp::nvcomp CUDA::cudart)

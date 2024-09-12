@@ -406,7 +406,6 @@ int launch_compress(mgard_x::DIM D, enum mgard_x::data_type dtype,
   printf("In size:  %10ld  Out size: %10ld  Compression ratio: %f \n",
          original_size * sizeof(T), compressed_size,
          (double)original_size * sizeof(T) / compressed_size);
-
   if (verbose) {
     char temp[] = "decompressed_tmp.dat";
     launch_decompress<T>(D, dtype, output_file, temp, shape, tol, s, mode,
@@ -547,9 +546,9 @@ bool try_compression(int argc, char *argv[]) {
   bool verbose = has_arg(argc, argv, "-v");
   if (verbose)
     std::cout << mgard_x::log::log_info << "Verbose: enabled\n";
-  if (dtype == mgard_x::data_type::Double)
-    launch_compress<double>(D, dtype, input_file.c_str(), output_file.c_str(),
-                            shape, (double)tol, (double)s, mode, verbose);
+  if (dtype == mgard_x::data_type::Double){}
+    // launch_compress<double>(D, dtype, input_file.c_str(), output_file.c_str(),
+    //                         shape, (double)tol, (double)s, mode, verbose);
   else if (dtype == mgard_x::data_type::Float)
     launch_compress<float>(D, dtype, input_file.c_str(), output_file.c_str(),
                            shape, (float)tol, (float)s, mode, verbose);
@@ -608,9 +607,9 @@ bool try_decompression(int argc, char *argv[]) {
   bool verbose = has_arg(argc, argv, "-v");
   if (verbose)
     std::cout << mgard_x::log::log_info << "Verbose: enabled\n";
-  if (dtype == mgard_x::data_type::Double)
-    launch_decompress<double>(D, dtype, input_file.c_str(), output_file.c_str(),
-                              shape, (double)tol, (double)s, mode, verbose);
+  if (dtype == mgard_x::data_type::Double){}
+    // launch_decompress<double>(D, dtype, input_file.c_str(), output_file.c_str(),
+    //                           shape, (double)tol, (double)s, mode, verbose);
   else if (dtype == mgard_x::data_type::Float)
     launch_decompress<float>(D, dtype, input_file.c_str(), output_file.c_str(),
                              shape, (float)tol, (float)s, mode, verbose);

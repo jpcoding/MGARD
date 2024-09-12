@@ -32,8 +32,11 @@ class Compressor : public LossyCompressorInterface<D, T, DeviceType> {
 public:
   using HierarchyType = Hierarchy<D, T, DeviceType>;
   using DataRefactorType = data_refactoring::DataRefactor<D, T, DeviceType>;
+  // using LosslessCompressorType =
+  //     ComposedLosslessCompressor<QUANTIZED_UNSIGNED_INT, HUFFMAN_CODE,
+  //                                DeviceType>;
   using LosslessCompressorType =
-      ComposedLosslessCompressor<QUANTIZED_UNSIGNED_INT, HUFFMAN_CODE,
+      ComposedLosslessCompressor<QUANTIZED_INT, HUFFMAN_CODE,
                                  DeviceType>;
   using LinearQuantizerType = LinearQuantizer<D, T, QUANTIZED_INT, DeviceType>;
 

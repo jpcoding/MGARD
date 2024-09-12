@@ -509,6 +509,7 @@ enum compress_status_type decompress_pipeline(
           subdomain_copy_direction::SubdomainToOriginal, previous_queue);
     }
     if (CR > 1.0) {
+      std::cout << "used this one\n";
       compressor.Dequantize(device_subdomain_buffer[current_buffer],
                             local_ebtype, local_tol, s, norm, current_queue);
       compressor.Recompose(device_subdomain_buffer[current_buffer],

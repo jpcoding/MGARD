@@ -4,7 +4,9 @@ build/
 install/
 .github 
 .cache
-release/
+release*
+build*
+debug
 
 #Archives.
 lib/

@@ -319,6 +319,7 @@ int launch_compress(mgard_x::DIM D, enum mgard_x::data_type dtype,
   config.prefetch = prefetch;
   config.max_memory_footprint = max_memory_footprint;
   config.huff_dict_size = 8192;
+  // config.huff_dict_size = 8192*4;
   config.adjust_shape = false;
   config.cache_compressor = true;
 
@@ -384,9 +385,9 @@ int launch_compress(mgard_x::DIM D, enum mgard_x::data_type dtype,
 
   std::cout << mgard_x::log::log_info << "Compression ratio: "
             << (double)original_size * sizeof(T) / compressed_size << "\n";
-  // printf("In size:  %10ld  Out size: %10ld  Compression ratio: %f \n",
-  //        original_size * sizeof(T), compressed_size,
-  //        (double)original_size * sizeof(T) / compressed_size);
+  printf("In size:  %10ld  Out size: %10ld  Compression ratio: %f \n",
+         original_size * sizeof(T), compressed_size,
+         (double)original_size * sizeof(T) / compressed_size);
 
   void *decompressed_data = malloc(original_size * sizeof(T));
   mgard_x::pin_memory(decompressed_data, original_size * sizeof(T), config);

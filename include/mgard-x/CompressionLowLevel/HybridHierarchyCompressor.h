@@ -35,8 +35,11 @@ public:
   using DataRefactorType = data_refactoring::DataRefactor<D, T, DeviceType>;
   using HybridHierarchyDataRefactorType =
       data_refactoring::HybridHierarchyDataRefactor<D, T, DeviceType>;
+  // using LosslessCompressorType =
+  //     ComposedLosslessCompressor<QUANTIZED_UNSIGNED_INT, HUFFMAN_CODE,
+  //                                DeviceType>;
   using LosslessCompressorType =
-      ComposedLosslessCompressor<QUANTIZED_UNSIGNED_INT, HUFFMAN_CODE,
+      ComposedLosslessCompressor<QUANTIZED_INT, HUFFMAN_CODE,
                                  DeviceType>;
   using LinearQuantizerType = LinearQuantizer<D, T, QUANTIZED_INT, DeviceType>;
   using HybridHierarchyLinearQuantizerType =
