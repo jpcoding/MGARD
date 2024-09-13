@@ -33,7 +33,7 @@ public:
     this->orig_quant_inds = quant_inds;
     this->unpred = unpred; 
     this->quant_radius = quant_radius;
-    std::cout << "class init quant_radius = " << this->quant_radius << std::endl;
+    // std::cout << "class init quant_radius = " << this->quant_radius << std::endl;
     init();
   }
 

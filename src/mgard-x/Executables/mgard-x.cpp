@@ -12,6 +12,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <iomanip>
 
 #include "compress_x.hpp"
 #include "mgard-x/Utilities/ErrorCalculator.h"
@@ -383,11 +384,12 @@ int launch_compress(mgard_x::DIM D, enum mgard_x::data_type dtype,
 
   writefile(output_file, compressed_size, compressed_data);
 
+  double compressionm_ratio = (double)original_size * sizeof(T) / compressed_size;
   std::cout << mgard_x::log::log_info << "Compression ratio: "
-            << (double)original_size * sizeof(T) / compressed_size << "\n";
-  printf("In size:  %10ld  Out size: %10ld  Compression ratio: %f \n",
-         original_size * sizeof(T), compressed_size,
-         (double)original_size * sizeof(T) / compressed_size);
+                    <<std::fixed << std::setprecision(6) << compressionm_ratio << "\n";
+  // printf("In size:  %10ld  Out size: %10ld  Compression ratio: %f \n",
+  //        original_size * sizeof(T), compressed_size,
+  //        (double)original_size * sizeof(T) / compressed_size);
 
   void *decompressed_data = malloc(original_size * sizeof(T));
   mgard_x::pin_memory(decompressed_data, original_size * sizeof(T), config);

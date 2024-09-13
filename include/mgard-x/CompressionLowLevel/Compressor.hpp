@@ -147,7 +147,7 @@ void Compressor<D, T, DeviceType>::Quantize(
 
   // reverse the order of the quantized array
   if constexpr (D == 3){
-  writefile_("quant_inds_q_1.dat", quantized_array.data(), quantized_array.totalNumElems());
+  // writefile_("quant_inds_q_1.dat", quantized_array.data(), quantized_array.totalNumElems());
 
   if(1){
 
@@ -157,7 +157,7 @@ void Compressor<D, T, DeviceType>::Quantize(
       }
 
       int max_level = log2(*min_element(dims.begin(), dims.end())) - 1;
-      int target_level = 4; 
+      int target_level = 2; 
       std::vector<std::vector<size_t>> level_dims; 
       for (int i = 0; i <= target_level; i++) {
       level_dims.push_back(std::vector<size_t>(dims.size()));
@@ -184,7 +184,7 @@ void Compressor<D, T, DeviceType>::Quantize(
                       data_buffer.data(), n1, n2, n3, 
                       dims[1]*dims[2], dims[2]);
       }
-      writefile_("quant_inds_q_2.dat", quantized_array.data(), quantized_array.totalNumElems());
+      // writefile_("quant_inds_q_2.dat", quantized_array.data(), quantized_array.totalNumElems());
 
     }
 
@@ -193,7 +193,7 @@ void Compressor<D, T, DeviceType>::Quantize(
       std::vector<size_t> dims;
       for(auto i = 0; i < quantized_array.shape().size(); i++){
         dims.push_back(quantized_array.shape()[i]);
-        std::cout << dims[i] << " ";
+        // std::cout << dims[i] << " ";
       }
       // int radius = quantizer.get_dict_size()/2;
       int radius = config.huff_dict_size/2;
@@ -210,9 +210,9 @@ void Compressor<D, T, DeviceType>::Quantize(
       auto quant_max = *std::max_element(quantized_array.data(), quantized_array.data() + quantized_array.totalNumElems());
 
       // 
-      std::cout << "quant_min = " << quant_min << std::endl;
-      std::cout << "quant_max = " << quant_max << std::endl;
-      writefile_("quant_inds_q_3.dat", quantized_array.data(), quantized_array.totalNumElems());
+      // std::cout << "quant_min = " << quant_min << std::endl;
+      // std::cout << "quant_max = " << quant_max << std::endl;
+      // writefile_("quant_inds_q_3.dat", quantized_array.data(), quantized_array.totalNumElems());
 
 
     }
@@ -232,7 +232,7 @@ void Compressor<D, T, DeviceType>::Quantize(
                       3, dims.data(), 2, 0, radius, 0);			
       quantization_predicter.quant_pred_level_3D_recover(1);
 			quantization_predicter.quant_pred_level_3D_recover(2);
-      writefile_("quant_inds_pred_recover_check.dat", quant_inds_copy.data(), quant_inds_copy.size());
+      // writefile_("quant_inds_pred_recover_check.dat", quant_inds_copy.data(), quant_inds_copy.size());
     }
   }
 
@@ -249,9 +249,6 @@ void Compressor<D, T, DeviceType>::LosslessCompress(
   Array<1, QUANTIZED_INT, DeviceType> quantized_liearized_array(
     {hierarchy->total_num_elems()},
     (QUANTIZED_INT *)quantized_array.data()); // A simple type conversion ? problem
-  std::cout << "point2\n";
-
-  // std::cout << "lossless config: " << config.huff_dict_size << std::endl;
 
   lossless_compressor.Compress(quantized_liearized_array, compressed_data,
                                queue_idx);
@@ -283,7 +280,7 @@ void Compressor<D, T, DeviceType>::Dequantize(
     if(1)
     {
       int radius = config.huff_dict_size/2;
-      writefile_("quant_inds_d_3.dat", quantized_array.data(), quantized_array.totalNumElems());
+      // writefile_("quant_inds_d_3.dat", quantized_array.data(), quantized_array.totalNumElems());
 
       // std::cout << "dict size: " << quantizer.get_dict_size() << std::endl;
 
@@ -299,12 +296,12 @@ void Compressor<D, T, DeviceType>::Dequantize(
 
     if(1)
     {
-      writefile_("quant_inds_d_2.dat", quantized_array.data(), quantized_array.totalNumElems());
+      // writefile_("quant_inds_d_2.dat", quantized_array.data(), quantized_array.totalNumElems());
       size_t n1 = dims[0];
       size_t n2 = dims[1];
       size_t n3 = dims[2];
       int max_level = log2(*std::min_element(dims.begin(), dims.end())) - 1;
-      int target_level = 4; 
+      int target_level = 2; 
       std::vector<QUANTIZED_INT> data_buffer(quantized_array.totalNumElems());
       // std::cout << "target_level = " << target_level << std::endl;    
       for(int i=0; i<target_level; i++){
@@ -316,7 +313,7 @@ void Compressor<D, T, DeviceType>::Dequantize(
           n3 = (n3 >> 1) + 1;
       }
     }
-    writefile_("quant_inds_d_1.dat", quantized_array.data(), quantized_array.totalNumElems());
+    // writefile_("quant_inds_d_1.dat", quantized_array.data(), quantized_array.totalNumElems());
 
 
   }
@@ -345,7 +342,6 @@ void Compressor<D, T, DeviceType>::Compress(
 
   config.apply();
 
-  std::cout << " used this for compression 1 \n";
   DeviceRuntime<DeviceType>::SelectDevice(config.dev_id);
   log::info("Select device: " + DeviceRuntime<DeviceType>::GetDeviceName());
   Timer timer_total;
@@ -367,11 +363,10 @@ void Compressor<D, T, DeviceType>::Compress(
   Decompose(original_data, queue_idx);
   Quantize(original_data, ebtype, tol, s, norm, queue_idx);
   LosslessCompress(compressed_data, queue_idx);
-  std::cout << " used this for compression 2 \n";
-  if (1) {
+  if (config.compress_with_dryrun) {
     Dequantize(original_data, ebtype, tol, s, norm, queue_idx);
     Recompose(original_data, queue_idx);
-    writefile_("decompressed_mgard_pred.out", original_data.data(), original_data.totalNumElems());
+    // writefile_("decompressed_mgard_pred.out", original_data.data(), original_data.totalNumElems());
   }
 
   if (log::level & log::TIME) {

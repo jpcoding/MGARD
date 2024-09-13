@@ -73,9 +73,7 @@ public:
   }
 
   void Compress(Array<1, T, DeviceType> &original_data,
-                Array<1, Byte, DeviceType> &compressed_data, int queue_idx) {
-    printf("ComposedLosslessCompressor::Compress\n");
-    
+                Array<1, Byte, DeviceType> &compressed_data, int queue_idx) {    
     
     huffman.CompressPrimary(original_data, compressed_data, queue_idx);
     if(0){
@@ -88,9 +86,6 @@ public:
     sz3_huffman_encoder.postprocess_encode();
     }
 
-
-
-    printf("complete huffman compression\n");
     if (config.lossless == lossless_type::Huffman_LZ4) {
       lz4.Compress(compressed_data, queue_idx);
     }

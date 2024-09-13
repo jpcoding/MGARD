@@ -207,10 +207,10 @@ public:
                            byte_offset, queue_idx);
     SerializeArray<size_t>(compressed_data_subarray, &huff_buffer_size, 1, byte_offset, queue_idx);
     SerializeArray<Byte>(compressed_data_subarray, huff_buffer.data(), huff_buffer_size, byte_offset, queue_idx);
-    writefile__("huff_buffer.bin", huff_buffer.data(), huff_buffer_size);
+    // writefile__("huff_buffer.bin", huff_buffer.data(), huff_buffer_size);
 
     // inplace huffman decode test 
-    {
+    if(0){
     auto sz3_huffman_decoder = SZ3::HuffmanEncoder<Q>(); 
     std::vector<Byte> huff_buffer_copy;
     huff_buffer_copy.resize(huff_buffer_size);
@@ -222,11 +222,11 @@ public:
     sz3_huffman_decoder.load(buffer_pos, remaining_length);
     auto quantized_data = sz3_huffman_decoder.decode(buffer_pos, primary_count);
     sz3_huffman_decoder.postprocess_decode();
-    writefile__("quant_inds_huff.i64",quantized_data.data(), primary_count);
+    // writefile__("quant_inds_huff.i64",quantized_data.data(), primary_count);
     }
 
-    std::cout << "de_huff_buffer_size: " << huff_buffer_size << std::endl;
-    std::cout << "de_byte_offset: " << byte_offset << std::endl;
+    // std::cout << "de_huff_buffer_size: " << huff_buffer_size << std::endl;
+    // std::cout << "de_byte_offset: " << byte_offset << std::endl;
 
 
 
@@ -278,16 +278,6 @@ public:
     SerializeArray<S>(compressed_data_subarray,
                       workspace.outlier_subarray.data(),
                       workspace.outlier_count, byte_offset, queue_idx);
-    // use sz3 read and write
-    if(0){
-      Byte* cmp_ptr = compressed_data.data();
-      SZ3::write(primary_count,cmp_ptr ); 
-      SZ3::write(huff_buffer_size, cmp_ptr);
-      SZ3::write(huff_buffer.data(), huff_buffer_size, cmp_ptr);
-      SZ3::write(workspace.outlier_count, cmp_ptr);
-      SZ3::write(workspace.outlier_idx_subarray.data(), workspace.outlier_count, cmp_ptr);
-      SZ3::write(workspace.outlier_subarray.data(), workspace.outlier_count, cmp_ptr);
-    }
 
     DeviceRuntime<DeviceType>::SyncQueue(queue_idx);
 
@@ -361,12 +351,12 @@ public:
     std::vector<Byte> huff_buffer;
     huff_buffer.resize(huff_buffer_size);
     Byte* huff_buffer_ptr = huff_buffer.data();
-    std::cout << "de_huff_buffer_size: " << huff_buffer_size << std::endl;
-    std::cout << "de_byte_offset: " << byte_offset << std::endl;
+    // std::cout << "de_huff_buffer_size: " << huff_buffer_size << std::endl;
+    // std::cout << "de_byte_offset: " << byte_offset << std::endl;
     DeserializeArray<Byte>(compressed_subarray, huff_buffer_ptr,
                        huff_buffer_size, byte_offset, false, queue_idx);
-    std::cout << "de_byte_offset: " << byte_offset << std::endl;
-    writefile__("de_huff_buffer.bin", huff_buffer.data(), huff_buffer_size);
+    // std::cout << "de_byte_offset: " << byte_offset << std::endl;
+    // writefile__("de_huff_buffer.bin", huff_buffer.data(), huff_buffer_size);
     // DeserializeArray<int>(compressed_subarray, dict_size_ptr, 1, byte_offset,
     //                       false, queue_idx);
     // DeserializeArray<int>(compressed_subarray, chunk_size_ptr, 1, byte_offset,
@@ -404,18 +394,6 @@ public:
                                  queue_idx);
     DeserializeArray<S>(compressed_subarray, outlier, workspace.outlier_count,
                         byte_offset, true, queue_idx);
-    // use sz3 read
-    if(0){
-      Byte const * cmp_ptr = compressed_data.data();
-      SZ3::read(primary_count, cmp_ptr);
-      SZ3::read(huff_buffer_size, cmp_ptr);
-      huff_buffer.resize(huff_buffer_size);
-      SZ3::read(huff_buffer.data(), huff_buffer_size, cmp_ptr);
-      SZ3::read(workspace.outlier_count, cmp_ptr);
-      SZ3::read(workspace.outlier_idx_subarray.data(), workspace.outlier_count, cmp_ptr);
-      SZ3::read(workspace.outlier_subarray.data(), workspace.outlier_count, cmp_ptr);
-      writefile__("de_huff_buffer.bin", huff_buffer.data(), huff_buffer_size);
-    }
 
     workspace.outlier_idx_subarray = SubArray<1, ATOMIC_IDX, DeviceType>(
         {(SIZE)workspace.outlier_count}, outlier_idx);
@@ -434,7 +412,19 @@ public:
     sz3_huffman_decoder.load(buffer_pos, remaining_length);
     auto quantized_data = sz3_huffman_decoder.decode(buffer_pos, primary_count);
     sz3_huffman_decoder.postprocess_decode();
+
+    //avoid copy 
+    // Timer timer;
+    // auto start = std::chrono::high_resolution_clock::now();
+    // std::move(quantized_data.begin(), quantized_data.end(), primary_data.data());
     std::copy(quantized_data.data(), quantized_data.data() + primary_count, primary_data.data());
+    // auto end = std::chrono::high_resolution_clock::now();
+    // std::chrono::duration<double> duration = end - start;
+    // std::cout << "Move time: " << duration.count() << " seconds\n";
+
+
+
+    // std::copy(quantized_data.data(), quantized_data.data() + primary_count, primary_data.data());
 
 
     // SubArray primary_subarray(primary_data);
