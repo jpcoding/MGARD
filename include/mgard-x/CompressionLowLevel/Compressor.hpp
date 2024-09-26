@@ -157,7 +157,7 @@ void Compressor<D, T, DeviceType>::Quantize(
       }
 
       int max_level = log2(*min_element(dims.begin(), dims.end())) - 1;
-      int target_level = 2; 
+      int target_level = 4; 
       std::vector<std::vector<size_t>> level_dims; 
       for (int i = 0; i <= target_level; i++) {
       level_dims.push_back(std::vector<size_t>(dims.size()));
@@ -301,7 +301,7 @@ void Compressor<D, T, DeviceType>::Dequantize(
       size_t n2 = dims[1];
       size_t n3 = dims[2];
       int max_level = log2(*std::min_element(dims.begin(), dims.end())) - 1;
-      int target_level = 2; 
+      int target_level =4; 
       std::vector<QUANTIZED_INT> data_buffer(quantized_array.totalNumElems());
       // std::cout << "target_level = " << target_level << std::endl;    
       for(int i=0; i<target_level; i++){

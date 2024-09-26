@@ -16,11 +16,46 @@
 
 #include "compress_x.hpp"
 #include "mgard-x/Utilities/ErrorCalculator.h"
-// #include "compress_cuda.hpp"
 
 #define OUTPUT_SAFTY_OVERHEAD 1e6
 
 using namespace std::chrono;
+
+namespace external_timer {
+    class Timer {
+    public:
+        Timer() = default;
+
+        Timer(bool initstart) {
+            if (initstart) {
+                start();
+            }
+        }
+
+        void start() {
+            begin = std::chrono::steady_clock::now();
+        }
+
+        double stop() {
+            end = std::chrono::steady_clock::now();
+            return std::chrono::duration<double>(end - begin).count();
+        }
+
+        double stop(const std::string &msg) {
+            double seconds = stop();
+#if SZ3_DEBUG_TIMINGS
+            std::cout << msg << " time = " << seconds << "s" << std::endl;
+#endif
+            return seconds;
+        }
+
+    private:
+        std::chrono::time_point<std::chrono::steady_clock> begin, end;
+    };
+};
+// #include "compress_cuda.hpp"
+
+
 
 void print_usage_message(std::string error) {
   if (error.compare("") != 0) {
@@ -361,6 +396,10 @@ int launch_compress(mgard_x::DIM D, enum mgard_x::data_type dtype,
   mgard_x::pin_memory(compressed_data, compressed_size, config);
   std::vector<const mgard_x::Byte *> coords_byte;
   mgard_x::compress_status_type ret;
+
+  auto timer = external_timer::Timer();
+
+  timer.start();
   if (!non_uniform) {
     ret = mgard_x::compress(D, dtype, shape, tol, s, mode, original_data,
                             compressed_data, compressed_size, config, true);
@@ -376,6 +415,7 @@ int launch_compress(mgard_x::DIM D, enum mgard_x::data_type dtype,
                             compressed_data, compressed_size, coords_byte,
                             config, true);
   }
+  std::cout << "compression time = " << timer.stop() << std::endl;
 
   if (ret != mgard_x::compress_status_type::Success) {
     std::cout << mgard_x::log::log_err << "Compression failed\n";
@@ -393,14 +433,20 @@ int launch_compress(mgard_x::DIM D, enum mgard_x::data_type dtype,
 
   void *decompressed_data = malloc(original_size * sizeof(T));
   mgard_x::pin_memory(decompressed_data, original_size * sizeof(T), config);
+ 
+  timer.start();
   mgard_x::decompress(compressed_data, compressed_size, decompressed_data,
                       config, true);
+  std::cout << "decompression time = " << timer.stop() << std::endl;
 
   print_statistics<T>(s, mode, shape, original_data, (T *)decompressed_data,
                       tol, config.normalize_coordinates);
-
+  
+  string output_file_str(output_file);
+  string output_file_str_out = output_file_str + ".out";
+  writefile(output_file_str_out.c_str(), original_size * sizeof(T), decompressed_data); 
   mgard_x::unpin_memory(decompressed_data, config);
-  free(decompressed_data);
+  free(decompressed_data); 
 
   mgard_x::unpin_memory(original_data, config);
   mgard_x::unpin_memory(compressed_data, config);
