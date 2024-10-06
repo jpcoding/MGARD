@@ -1,4 +1,6 @@
+#include <algorithm>
 #include <cmath>
+#include <cstdlib>
 #include <iostream>
 #include <fstream>
 #include <cstring>
@@ -7,6 +9,7 @@
 #include <cstddef>
 #include "mgard/compress.hpp"
 #include <ctime>
+#include <algorithm>
 using namespace std;
 
 
@@ -215,12 +218,10 @@ int main(int argc, char ** argv){
     	dimensions[num_dims-1-i] = (size_t)atoi(argv[5 + i]);
 	//printf(" dim[%d] = %d", num_dims-1-i,dimensions[num_dims-1-i]);
     }
-    float max=data[0], min=data[0];
-    for (size_t i=0;i<num_elements;i++){
-	    if (data[i]>max) max=data[i];
-	    if (data[i]<min) min=data[i];
-    }
+    float max = *std::max_element(data, data + num_elements);
+    float min = *std::min_element(data, data + num_elements);
     eb=eb*(max-min);
+    std::cout <<"eb = " << eb << std::endl;
     using T = float;
     if (s==9) {
     s = std::numeric_limits<T>::infinity();}
@@ -234,16 +235,15 @@ int main(int argc, char ** argv){
 	    timer.start();
 	    mgard::CompressedDataset<2, T> compressed = mgard::compress(hierarchy, data, s, eb);
 	    timer.end();
-	    printf("mgard compress time = %f \n", timer.get());
+	    printf("compression time = %f \n", timer.get());
 	    timer.start();
 	    mgard::DecompressedDataset<2, T> decompressed = mgard::decompress(compressed);
 	    timer.end();
-	    printf("mgard decompress time = %f \n", timer.get());
-	    writefile((string(argv[1]) + ".mgard.out").c_str(), decompressed.data(), num_elements);
-	    printf("compressionRatio = %.4f\n", 1.0*num_elements*sizeof(T) / compressed.size());
-                printf("bitrate = %.4f\n", 32*1.0/(1.0*num_elements*sizeof(T) / compressed.size()));
-
-	    verify(data, decompressed.data(), num_elements);
+	    printf("decompression time = %f \n", timer.get());
+	    // writefile((string(argv[1]) + ".mgard.out").c_str(), decompressed.data(), num_elements);
+        printf("Compression ratio: %.4f\n", 1.0*num_elements*sizeof(T) / compressed.size());
+        printf("bitrate = %.4f\n", 32*1.0/(1.0*num_elements*sizeof(T) / compressed.size()));
+	    verify(data, decompressed.data(), num_elements);		
         // size_t compressed_size = 0;
         // const T* decompressed_data =  compress_decompress_float(data, num_dims, dimensions.data(), atof(argv[2]), s,compressed_size);
         // printf("compressed_size = %d\n", compressed_size);
@@ -251,13 +251,14 @@ int main(int argc, char ** argv){
 
         // std::vector<float> ddata;
         // ddata.resize(num_elements);
-        size_t compressed_size = 0;
+        // size_t compressed_size = 0;
         // // compress_decompress(data, ddata.data(),num_dims,dimensions.data() , eb, s,compressed_size);
 
-        mgard::DecompressedDataset<2, T> decompresseddata = compress_decompress_2d(data,  dimensions[0],  dimensions[1], eb,  s,  compressed_size);
-        writefile((string(argv[1]) + ".mgard.out").c_str(), decompresseddata.data(), num_elements);
-        printf("compressionRatio = %.4f\n", 1.0*num_elements*sizeof(T) /compressed_size);
-        printf("bitrate = %.4f\n", 32*1.0/(1.0*num_elements*sizeof(T) / compressed_size));
+        // mgard::DecompressedDataset<2, T> decompresseddata = compress_decompress_2d(data,  dimensions[0],  dimensions[1], eb,  s,  compressed_size);
+	    // writefile((string(argv[1]) + ".mgard.out").c_str(), decompressed.data(), num_elements);
+        // printf("Compression ratio: %.4f\n", 1.0*num_elements*sizeof(T) / compressed.size());
+        // printf("bitrate = %.4f\n", 32*1.0/(1.0*num_elements*sizeof(T) / compressed.size()));
+	    // verify(data, decompressed.data(), num_elements);		
 
         // verify(data, decompressed.data(), num_elements);
 
@@ -270,17 +271,20 @@ int main(int argc, char ** argv){
 	    timer.start();
 	    mgard::CompressedDataset<3, T> compressed = mgard::compress(hierarchy, data, s, eb);
 	    timer.end();
-	    printf("mgard compress time = %f \n", timer.get());
+	    printf("compression time = %f \n", timer.get());
 	    timer.start();
 	    mgard::DecompressedDataset<3, T> decompressed = mgard::decompress(compressed);
 	    timer.end();
-	    printf("mgard decompress time = %f \n", timer.get());
+	    printf("decompression time = %f \n", timer.get());
 	    writefile((string(argv[1]) + ".mgard.out").c_str(), decompressed.data(), num_elements);
-	    writefile((string(argv[1]) + ".mgard.out").c_str(), decompressed.data(), num_elements);
-	    printf("compressionRatio = %.4f\n", 1.0*num_elements*sizeof(T) / compressed.size());
+	    // writefile((string(argv[1]) + ".mgard.out").c_str(), decompressed.data(), num_elements);
+	    printf("Compression ratio: %.4f\n", 1.0*num_elements*sizeof(T) / compressed.size());
         printf("bitrate = %.4f\n", 32*1.0/(1.0*num_elements*sizeof(T) / compressed.size()));
 	    verify(data, decompressed.data(), num_elements);		
 	}
+
+    free(data);
+    return 0;
 
 }
 

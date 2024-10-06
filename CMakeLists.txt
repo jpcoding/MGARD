@@ -8,6 +8,11 @@ if(CMAKE_CURRENT_SOURCE_DIR STREQUAL CMAKE_CURRENT_BINARY_DIR)
   )
 endif()
 
+option(SZ_ANALYSIS "SZ analysis tools: give level, quant, pred data. cmake -D SZ_ANALYSIS=ON" OFF)
+if (SZ_ANALYSIS)
+  add_compile_definitions(-DSZ_ANALYSIS)
+endif()
+
 set(CMAKE_CXX_STANDARD 17) 
 set (SZ3_INC "/scratch/pji228/graveyard/sz3_orig/include/")
 

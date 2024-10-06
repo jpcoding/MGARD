@@ -135,6 +135,7 @@ void Compressor<D, T, DeviceType>::Quantize(
 
   quantizer.Quantize(original_data, ebtype, tol, s, norm, quantized_array,
                      lossless_compressor, queue_idx);
+  std::cout << "using modified quantizer "<< std::endl;
 
 
   // std::cout << "dict size: " << quantizer.get_dict_size() << std::endl; 
@@ -185,6 +186,9 @@ void Compressor<D, T, DeviceType>::Quantize(
                       dims[1]*dims[2], dims[2]);
       }
       // writefile_("quant_inds_q_2.dat", quantized_array.data(), quantized_array.totalNumElems());
+      #ifdef SZ_ANALYSIS
+      writefile_("orig_quant.dat", quantized_array.data(), quantized_array.totalNumElems());
+      #endif
 
     }
 
@@ -213,6 +217,9 @@ void Compressor<D, T, DeviceType>::Quantize(
       // std::cout << "quant_min = " << quant_min << std::endl;
       // std::cout << "quant_max = " << quant_max << std::endl;
       // writefile_("quant_inds_q_3.dat", quantized_array.data(), quantized_array.totalNumElems());
+      #ifdef SZ_ANALYSIS
+      writefile_("processed_quant.dat", quantized_array.data(), quantized_array.totalNumElems());
+      #endif
 
 
     }
